@@ -2,38 +2,51 @@
 import { useCallback, useEffect, useState } from "react";
 import { ADDRESSES, EXPLORER } from "../lib/config";
 import { depositCalls, fromUnits, readU256, stakeCalls, toUnits } from "../lib/agama";
+import { connectWalletObject, detectWallets, walletLabel } from "../lib/wallet";
 
 export default function Home() {
   const [wallet, setWallet] = useState<any>(null);
   const [address, setAddress] = useState<string>("");
+  const [picker, setPicker] = useState<any[]>([]);
   const [bal, setBal] = useState({ usdc: 0n, agusd: 0n, sagusd: 0n });
   const [amount, setAmount] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const connectWallet = useCallback(async () => {
+  const doConnect = useCallback(async (swo: any) => {
+    setPicker([]);
+    setStatus("");
     try {
-      const { connect } = await import("starknetkit");
-      const res: any = await connect({ modalMode: "alwaysAsk", dappName: "Agama" });
-      const w = res?.wallet;
-      if (w) {
-        setWallet(w);
-        setAddress(res?.connectorData?.account || w.selectedAddress || "");
+      const { address: addr } = await connectWalletObject(swo);
+      if (!addr) {
+        setStatus("Connection cancelled or no account exposed.");
+        return;
       }
+      setWallet(swo);
+      setAddress(addr);
     } catch (e: any) {
       setStatus("Connect failed: " + (e?.message || String(e)));
     }
   }, []);
 
-  const disconnectWallet = useCallback(async () => {
-    try {
-      const { disconnect } = await import("starknetkit");
-      await disconnect();
-    } catch {
-      /* ignore */
+  const beginConnect = useCallback(async () => {
+    setStatus("");
+    const found = detectWallets();
+    if (found.length === 0) {
+      setStatus("No Starknet wallet detected. Install Ready or Braavos, then reload.");
+      return;
     }
+    if (found.length === 1) {
+      await doConnect(found[0]);
+    } else {
+      setPicker(found);
+    }
+  }, [doConnect]);
+
+  const disconnectWallet = useCallback(() => {
     setWallet(null);
     setAddress("");
+    setPicker([]);
     setBal({ usdc: 0n, agusd: 0n, sagusd: 0n });
   }, []);
 
@@ -90,8 +103,16 @@ export default function Home() {
               Disconnect
             </button>
           </div>
+        ) : picker.length > 0 ? (
+          <div className="btns" style={{ flexDirection: "column" }}>
+            {picker.map((w) => (
+              <button key={w.id} className="connect" onClick={() => doConnect(w)}>
+                Connect {walletLabel(w)}
+              </button>
+            ))}
+          </div>
         ) : (
-          <button className="connect" onClick={connectWallet}>
+          <button className="connect" onClick={beginConnect}>
             Connect wallet
           </button>
         )}
