@@ -1,13 +1,20 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ADDRESSES, EXPLORER } from "../lib/config";
 import {
+  amountStr,
+  blendedAprPct,
   depositCalls,
   fromUnits,
+  projectNav,
+  projectPoolValue,
   readU256,
+  readVaultState,
   redeemCalls,
-  redeemableUsdc,
+  sharePriceStr,
+  sharesToUsdc,
   toUnits,
+  type VaultState,
 } from "../lib/agama";
 import { connectWalletObject, detectWalletsWithRetry, walletLabel } from "../lib/wallet";
 
@@ -15,10 +22,33 @@ export default function Home() {
   const [wallet, setWallet] = useState<any>(null);
   const [address, setAddress] = useState<string>("");
   const [picker, setPicker] = useState<any[]>([]);
-  const [bal, setBal] = useState({ usdc: 0n, agusd: 0n, agusdValue: 0n });
+  const [bal, setBal] = useState({ usdc: 0n, agusd: 0n });
+  const [vault, setVault] = useState<VaultState | null>(null);
+  const [now, setNow] = useState<number>(Math.floor(Date.now() / 1000));
   const [amount, setAmount] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // 1s clock drives the live price projection.
+  useEffect(() => {
+    const t = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const loadVault = useCallback(async () => {
+    try {
+      setVault(await readVaultState());
+    } catch {
+      /* ignore transient read errors */
+    }
+  }, []);
+
+  // Load vault/pool state on mount and re-sync from chain every 30s.
+  useEffect(() => {
+    loadVault();
+    const t = setInterval(loadVault, 30000);
+    return () => clearInterval(t);
+  }, [loadVault]);
 
   const doConnect = useCallback(async (swo: any) => {
     setPicker([]);
@@ -44,18 +74,15 @@ export default function Home() {
       return;
     }
     setStatus("");
-    if (found.length === 1) {
-      await doConnect(found[0]);
-    } else {
-      setPicker(found);
-    }
+    if (found.length === 1) await doConnect(found[0]);
+    else setPicker(found);
   }, [doConnect]);
 
   const disconnectWallet = useCallback(() => {
     setWallet(null);
     setAddress("");
     setPicker([]);
-    setBal({ usdc: 0n, agusd: 0n, agusdValue: 0n });
+    setBal({ usdc: 0n, agusd: 0n });
   }, []);
 
   const refresh = useCallback(async (addr: string) => {
@@ -65,10 +92,9 @@ export default function Home() {
         readU256(ADDRESSES.usdc, "balanceOf", [addr]),
         readU256(ADDRESSES.agusd, "balance_of", [addr]),
       ]);
-      const agusdValue = await redeemableUsdc(agusd);
-      setBal({ usdc, agusd, agusdValue });
+      setBal({ usdc, agusd });
     } catch {
-      /* ignore transient read errors */
+      /* ignore */
     }
   }, []);
 
@@ -86,7 +112,10 @@ export default function Home() {
       setStatus(`${label}…`);
       const tx = await wallet.account.execute(calls);
       setStatus(`${label} sent: ${tx.transaction_hash}`);
-      setTimeout(() => refresh(address), 4000);
+      setTimeout(() => {
+        refresh(address);
+        loadVault();
+      }, 4000);
     } catch (e: any) {
       setStatus("Error: " + (e?.message || String(e)));
     } finally {
@@ -94,12 +123,32 @@ export default function Home() {
     }
   };
 
+  const nowB = BigInt(now);
+  const price = vault ? sharePriceStr(vault, nowB, 8) : "1.00000000";
+  const nav = vault ? projectNav(vault, nowB) : 0n;
+  const apr = vault ? blendedAprPct(vault) : "0.00";
+  const userValue = vault ? sharesToUsdc(bal.agusd, nav, vault.supply) : 0n;
+
   const amt = toUnits(amount);
   return (
     <div className="wrap">
       <div className="brand">AGAMA × STARKNET</div>
       <h1>Private-credit vault</h1>
-      <p className="sub">Deposit USDC to mint agUSD — the yield-bearing token auto-allocated across Agama lending pools.</p>
+      <p className="sub">
+        Deposit USDC to mint agUSD — the yield-bearing token indexed on Agama&apos;s lending pools.
+      </p>
+
+      {/* Live share price — the NAV per agUSD, ticking as the pools earn. */}
+      <div className="price-hero">
+        <div className="price-label">1 agUSD =</div>
+        <div className="price-value">
+          {price}
+          <span className="price-unit"> USDC</span>
+        </div>
+        <div className="price-meta">
+          NAV ${amountStr(nav, 6)} · {apr}% blended APR · live
+        </div>
+      </div>
 
       <div className="card">
         {address ? (
@@ -138,13 +187,28 @@ export default function Home() {
               {fromUnits(bal.agusd)}
               {bal.agusd > 0n && (
                 <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>
-                  ≈ {fromUnits(bal.agusdValue)} USDC
+                  = {amountStr(userValue, 6)} USDC
                 </span>
               )}
             </span>
           </div>
         </div>
       )}
+
+      {/* The four lending pools behind agUSD, each accruing at its own APR. */}
+      <div className="pools">
+        {(vault?.pools ?? []).map((p) => (
+          <div className="pool" key={p.address}>
+            <div className="pool-top">
+              <span className="pool-label">{p.label}</span>
+              <span className="pool-apr">{(Number(p.aprBps) / 100).toFixed(0)}%</span>
+            </div>
+            <div className="pool-sector">{p.sector}</div>
+            <div className="pool-value">{amountStr(projectPoolValue(p, nowB), 6)}</div>
+            <div className="pool-sub">USDC · marked live</div>
+          </div>
+        ))}
+      </div>
 
       <div className="card">
         <div className="label">Amount</div>
@@ -154,7 +218,6 @@ export default function Home() {
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
         />
-
         <div className="btns">
           <button
             className="primary"
@@ -170,7 +233,6 @@ export default function Home() {
             Redeem → USDC
           </button>
         </div>
-
         {status && <div className="status">{status}</div>}
       </div>
 

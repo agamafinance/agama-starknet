@@ -10,7 +10,7 @@ open public issues for security bugs.
 
 ## Audit scope (`src/`)
 
-`agusd` · `vault` · `nav_oracle` · `allocation_engine` · `withdrawal_queue` ·
+`agusd` · `vault` · `lending_pool` · `nav_oracle` · `allocation_engine` · `withdrawal_queue` ·
 `pool_adapter` (VesuAdapter, OriginatorAdapter) · `agama_pool_vault` · `agama_anonymizer`.
 `mock_usdc` is test-only and out of scope.
 
@@ -40,9 +40,12 @@ open public issues for security bugs.
   defense-in-depth before mainnet against integer-rounding edge cases at tiny supplies.
 - **Socialized loss (V1, no tranching).** A NAV write-down reduces backing pro-rata across all
   agUSD holders; there is no junior/senior split yet.
-- **Reserve accounting vs. custody.** `AgamaVault.redeem` checks `reserve`; the allocation
-  engine tracks deployed capital separately. Keepers must keep enough idle reserve (buffer) to
-  serve redemptions, otherwise redemptions queue (see `WithdrawalQueue`).
+- **Marked NAV vs. realized cash.** Each `LendingPool` marks accrued yield at its APR
+  continuously, so the vault NAV (and the `agUSD` price) rises before the cash is realized.
+  `redeem` is bounded by `realized()` = idle + Σ pool principal (a `distribute` of real USDC
+  backs the accrued yield on settlement); a redemption exceeding realized liquidity reverts and
+  should route through `WithdrawalQueue`. APR is admin-set and trusted; in production it is
+  driven by the NAV oracle's marks, not a fixed rate.
 - **agUSD burn authority.** Only the vault (minter) can burn agUSD; `redeem` burns the caller's
   own balance. A compromised vault owner could re-point the minter, hence the multisig
   requirement.
@@ -51,7 +54,7 @@ open public issues for security bugs.
 
 ## Testing
 
-40 `snforge` tests (unit + Sepolia fork) plus fuzz tests on core invariants
+45 `snforge` tests (unit + Sepolia fork) plus fuzz tests on core invariants
 (`tests/test_invariants.cairo`): deposit/redeem round-trip, the sole-depositor-captures-all-yield
-invariant (deposit → distribute → redeem returns principal + yield), and the allocation
-concentration-cap invariant.
+invariant, per-pool APR accrual and vault NAV aggregation (`test_lending_pool`, `test_vault`),
+and the allocation concentration-cap invariant.

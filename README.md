@@ -18,20 +18,23 @@ Everything is tested with `snforge` (unit + fork tests) and exercised on Starkne
 ![Agama on Starknet — architecture](docs/architecture.jpg)
 
 An LP deposits USDC, shielded through the native STRK20 privacy pool, and mints `agUSD`. Behind
-`agUSD` sits the vault: an ERC-4626-style share token whose **share price indexes on the
-aggregate assets under management** across the four Agama lending pools — Pool A (private
-credit), Pool B (tokenized treasuries), Pool C (bonds), Pool D (on-chain RWA yield). The
-allocation engine deploys the reserve into those pools under concentration caps, the NAV oracle
-marks their value, and realized yield is pushed back into the vault (`distribute`), lifting the
-`agUSD` share price. So the single token is what LPs hold, redeem, and earn on: 1 `agUSD` is
-worth `total_assets / agUSD_supply` USDC, and that ratio only grows as the pools return yield.
+`agUSD` sit the four Agama lending pools — Pool A (private credit, 12%), Pool B (tokenized
+treasuries, 5%), Pool C (bonds, 7%), Pool D (on-chain RWA yield, 9%) — each a `LendingPool`
+contract that accrues yield on its allocated principal at its own APR, every block. The vault's
+**NAV is the sum of every pool's marked value plus the idle reserve**, and the `agUSD` share
+price is `NAV / agUSD_supply`. So as the pools earn, the price rises continuously — 1 `agUSD` is
+worth strictly more USDC each second, with no manual step. The single token is what LPs hold,
+redeem, and earn on; the dApp reads the raw pool state and projects the price live to the
+micro-USDC. Concentration caps, the NAV oracle mark, and realized-cash settlement (`distribute`)
+back the model on the way to mainnet.
 
 ## Contracts (`src/`)
 
 | Contract | Role |
 |---|---|
 | `agusd.cairo` | `AgamaUSD` — the yield-bearing LP **share token**. OZ ERC20, 6 decimals, mint/burn restricted to the vault (minter), owner-set minter. |
-| `vault.cairo` | `AgamaVault` — the yield-bearing core (ERC-4626-style over USDC). `deposit` mints `agUSD` shares at the current price; `redeem` burns shares for USDC; `distribute` pushes RWA yield in so the share price rises. `total_assets` is an internal counter, closing the classic ERC-4626 donation/inflation vector. |
+| `vault.cairo` | `AgamaVault` — the yield-bearing core. `deposit` mints `agUSD` shares at the current price; `redeem` burns shares for USDC; `allocate`/`deallocate` deploy the reserve into lending pools; `distribute` adds realized cash yield. **NAV = idle + Σ pool.total_value()**, so the `agUSD` price indexes on the aggregate pools. Donation-attack safe (idle only moves via deposit/redeem/allocate/distribute). |
+| `lending_pool.cairo` | `LendingPool` — one Agama lending pool as a yield-bearing NAV position. Allocated `principal` accrues at the pool's `apr_bps` continuously (`total_value = principal + accrued + pending(now)`); Pool A/B/C/D run private-credit / treasuries / bonds / RWA rates. Vault-gated fund/defund, admin-set APR. |
 | `nav_oracle.cairo` | `NavOracle` — pushes RWA NAV with three checks (authorized reporter, monotonic timestamp, ≤5% deviation else admin override) and a staleness gate that blocks allocations/withdrawals. |
 | `allocation_engine.cairo` | `AllocationEngine` — admin pool registration (no self-listing), per-pool **concentration caps** enforced on-chain, allocations blocked while the oracle is stale. |
 | `withdrawal_queue.cairo` | `WithdrawalQueue` — FIFO redemptions settled in order as USDC returns from settlement. |
@@ -91,8 +94,12 @@ withdrawal-queue drain.
 
 | Contract | Address |
 |---|---|
-| AgamaUSD (agUSD, yield-bearing share) | `0x05563a90a1368c73dd6ed86418ecabbd245d9d6dfdf1e23e09eb9141eb66c345` |
-| AgamaVault | `0x06bd19937bf9bf258cf52c244a247d4ecc9ee08f4e553f67fadc971346cb3604` |
+| AgamaUSD (agUSD, yield-bearing share) | `0x04c0d175cab9fd3163958443830678c9828f52bbbfcd99c04cc52985302abd1f` |
+| AgamaVault | `0x059ed11c2b242e766818f3a957a1a9cfe22b0462b4eb7a60bbb71f5ecdb160b1` |
+| LendingPool A (private credit, 12%) | `0x07fd9db4d3377e6909555ea100b631784048de519e0100f32d5877180ebb55ad` |
+| LendingPool B (tokenized treasuries, 5%) | `0x018d17c95680bc634ffaa4211be8db4bfec2625ff614a2faf925422c44e3eb2d` |
+| LendingPool C (bonds, 7%) | `0x0438cd90d88358b574690ccdd8fd17370245929bed2d390f27bc984cbcf206e6` |
+| LendingPool D (onchain RWA yield, 9%) | `0x01ac07c1564032d8c3d02bdff1f9661783f3abc3b97ccdc6de318f70a171249f` |
 | NavOracle | `0x0524c9683f467d7c0ddc51b0b83352e33a2300bae006af90d9eb9ecad6349679` |
 | WithdrawalQueue | `0x00a8f8cae024f97dd63c5fb90444d49ede807b23b25441d563b77450a8431493` |
 | AllocationEngine | `0x013be6562483ab26ea3b1609580b8246eeb3542fbd57c7c583c036a46dc72bb9` |

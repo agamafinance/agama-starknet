@@ -26,8 +26,12 @@ the live yield round-trip is section 1.
 
 | Contract | Address |
 |---|---|
-| AgamaUSD (agUSD, yield-bearing share) | `0x05563a90a1368c73dd6ed86418ecabbd245d9d6dfdf1e23e09eb9141eb66c345` |
-| AgamaVault | `0x06bd19937bf9bf258cf52c244a247d4ecc9ee08f4e553f67fadc971346cb3604` |
+| AgamaUSD (agUSD, yield-bearing share) | `0x04c0d175cab9fd3163958443830678c9828f52bbbfcd99c04cc52985302abd1f` |
+| AgamaVault | `0x059ed11c2b242e766818f3a957a1a9cfe22b0462b4eb7a60bbb71f5ecdb160b1` |
+| LendingPool A (private credit, 12%) | `0x07fd9db4d3377e6909555ea100b631784048de519e0100f32d5877180ebb55ad` |
+| LendingPool B (tokenized treasuries, 5%) | `0x018d17c95680bc634ffaa4211be8db4bfec2625ff614a2faf925422c44e3eb2d` |
+| LendingPool C (bonds, 7%) | `0x0438cd90d88358b574690ccdd8fd17370245929bed2d390f27bc984cbcf206e6` |
+| LendingPool D (onchain RWA yield, 9%) | `0x01ac07c1564032d8c3d02bdff1f9661783f3abc3b97ccdc6de318f70a171249f` |
 | NavOracle | `0x0524c9683f467d7c0ddc51b0b83352e33a2300bae006af90d9eb9ecad6349679` |
 | WithdrawalQueue | `0x00a8f8cae024f97dd63c5fb90444d49ede807b23b25441d563b77450a8431493` |
 | AllocationEngine | `0x013be6562483ab26ea3b1609580b8246eeb3542fbd57c7c583c036a46dc72bb9` |
@@ -37,21 +41,24 @@ The full stack is deployed and exercised end-to-end.
 
 ## Run results
 
-### 1. Yield-bearing round-trip (agUSD share price rises with distributed yield)
-Deposit 3 USDC → mint 3 agUSD shares (price 1.0). Owner distributes 2 USDC of RWA yield, so
-total assets grow to 5 while supply stays 3 → **3 agUSD is now worth 5 USDC** (share price
-1.667). Redeeming the 3 shares returns the appreciated 5 USDC. Verified on-chain:
-`convert_to_assets(3_000_000) = 5_000_000`.
+### 1. Live yield-bearing NAV across four lending pools
+Deposit 4 USDC → mint 4 agUSD (price 1.0), then allocate the reserve across the four pools:
+1.5 → Pool A (12%), 1.0 → Pool B (5%), 1.0 → Pool C (7%), 0.5 → Pool D (9%). Each pool now
+accrues at its own APR every block, so the vault NAV — and the `agUSD` share price — rises
+continuously (blended ~8.63% APR). Verified on-chain: `total_assets` grows past `4_000_000`
+each block; the dApp reads the raw pool state and projects the price live.
 
 | Step | Tx |
 |---|---|
-| approve 3 USDC | [`0x2137644b…`](https://sepolia.voyager.online/tx/0x2137644b045bb54618ad23bde109ca33814024874e91772ea22ece1be8bcd2b) |
-| deposit 3 USDC → 3 agUSD | [`0x36ffd4d7…`](https://sepolia.voyager.online/tx/0x36ffd4d76b92338d85da91d692149b7cfbabd48c23c0d5c2738aa75cdc40350) |
-| approve 2 USDC (yield) | [`0x3849d65d…`](https://sepolia.voyager.online/tx/0x3849d65d588b2f5485037a3137dd1e7a097d68fdf1eee53667c7eba8468815f) |
-| distribute 2 USDC | [`0x13d7a321…`](https://sepolia.voyager.online/tx/0x13d7a32104eb6e186487b9485b084e6f65d756be98b30e200a4b745fa700172) |
-| redeem 3 agUSD → 5 USDC | [`0x43649200…`](https://sepolia.voyager.online/tx/0x43649200090ace1bcc5c2b0ad9a983db93a532f252a069d9ba77429b00bf65d) |
+| approve 4 USDC | [`0x4ba9c9fd…`](https://sepolia.voyager.online/tx/0x4ba9c9fd22334b8d9336e184c46121579637dc7bceaf932b294b1721c6ae774) |
+| deposit 4 USDC → 4 agUSD | [`0x491967b8…`](https://sepolia.voyager.online/tx/0x491967b826ef1648c05bc1f42b381bd6095c6dcd32946ef0ba41b95102397af) |
+| allocate 1.5 → Pool A (12%) | [`0x677d5213…`](https://sepolia.voyager.online/tx/0x677d521375713a3d95f93e1520cdc1bde6c38e36cf0283c8c717e8e034ee3e5) |
+| allocate 1.0 → Pool B (5%) | [`0xb3d42b91…`](https://sepolia.voyager.online/tx/0xb3d42b91c61d66312e1fd9867f16384998916186440c67357c81075159c51) |
+| allocate 1.0 → Pool C (7%) | [`0x126fa510…`](https://sepolia.voyager.online/tx/0x126fa510c7dbdef350051ced3c24d18321f88a2c6f03f89e6bea3d5621dad6f) |
+| allocate 0.5 → Pool D (9%) | [`0x3191290f…`](https://sepolia.voyager.online/tx/0x3191290f1c6d7afff56854b73296b623608c49963722c210f2ca4fc1ae65f0f) |
 
-Result: share price 1.0 → 1.667, `agUSD supply = 0`, `total_assets = 0` after redeem (clean).
+Result: NAV = 4.0 at t0, rising every block; `agUSD` price = NAV / supply, indexed on the
+aggregate of the four pools.
 
 ### 2. NAV oracle push
 `push_nav(1_050_000)` = +5% from 1_000_000, accepted at exactly the deviation cap; oracle fresh.

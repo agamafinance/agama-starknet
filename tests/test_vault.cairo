@@ -1,11 +1,12 @@
 use agama_starknet::agusd::{IAgamaUSDDispatcher, IAgamaUSDDispatcherTrait};
+use agama_starknet::lending_pool::{ILendingPoolDispatcher, ILendingPoolDispatcherTrait};
 use agama_starknet::mock_usdc::{
     IERC20Dispatcher, IERC20DispatcherTrait, IMockUsdcDispatcher, IMockUsdcDispatcherTrait,
 };
 use agama_starknet::vault::{IAgamaVaultDispatcher, IAgamaVaultDispatcherTrait};
 use snforge_std::{
-    ContractClassTrait, DeclareResultTrait, declare, start_cheat_caller_address,
-    stop_cheat_caller_address,
+    ContractClassTrait, DeclareResultTrait, declare, start_cheat_block_timestamp_global,
+    start_cheat_caller_address, stop_cheat_block_timestamp_global, stop_cheat_caller_address,
 };
 use starknet::ContractAddress;
 
@@ -122,6 +123,57 @@ fn test_yield_accrues_to_agusd() {
     assert(IERC20Dispatcher { contract_address: agusd }.balance_of(user()) == 0, 'shares burned');
 }
 
+// The vault's NAV indexes on the lending pools: as a pool accrues yield at its APR,
+// total_assets rises and the agUSD share price follows — no manual distribute needed.
+#[test]
+fn test_pool_yield_lifts_agusd_price() {
+    start_cheat_block_timestamp_global(1000);
+    let usdc = deploy_usdc();
+    let agusd = deploy_agusd();
+    let vault = deploy_vault(usdc, agusd);
+    let v = IAgamaVaultDispatcher { contract_address: vault };
+
+    start_cheat_caller_address(agusd, owner());
+    IAgamaUSDDispatcher { contract_address: agusd }.set_minter(vault);
+    stop_cheat_caller_address(agusd);
+
+    // user deposits 100 USDC -> 100 agUSD (price 1.0)
+    IMockUsdcDispatcher { contract_address: usdc }.mint(user(), 100000000);
+    start_cheat_caller_address(usdc, user());
+    IERC20Dispatcher { contract_address: usdc }.approve(vault, 100000000);
+    stop_cheat_caller_address(usdc);
+    start_cheat_caller_address(vault, user());
+    let shares = v.deposit(100000000);
+    stop_cheat_caller_address(vault);
+    assert(shares == 100000000, 'shares 1:1');
+
+    // deploy a 12% APR pool owned-for-funding by the vault, register + allocate all idle
+    let pc = declare("LendingPool").unwrap().contract_class();
+    let mut cd = array![];
+    owner().serialize(ref cd);
+    vault.serialize(ref cd);
+    let nm: felt252 = 'Pool A';
+    nm.serialize(ref cd);
+    let apr: u32 = 1200;
+    apr.serialize(ref cd);
+    let (pool, _) = pc.deploy(@cd).unwrap();
+
+    start_cheat_caller_address(vault, owner());
+    v.register_pool(pool);
+    v.allocate(0, 100000000);
+    stop_cheat_caller_address(vault);
+    assert(v.idle() == 0, 'idle deployed to pool');
+    assert(v.total_assets() == 100000000, 'nav = principal at t0');
+
+    // one year later: pool marks +12%, so NAV and the agUSD price rise 1.0 -> 1.12
+    start_cheat_block_timestamp_global(1000 + 31536000);
+    assert(ILendingPoolDispatcher { contract_address: pool }.total_value() == 112000000, 'pool +12%');
+    assert(v.pools_value() == 112000000, 'nav from pool');
+    assert(v.total_assets() == 112000000, 'nav +12%');
+    assert(v.convert_to_assets(100000000) == 112000000, 'agUSD price 1.12x');
+    stop_cheat_block_timestamp_global();
+}
+
 // Two depositors share yield pro-rata by shares held.
 #[test]
 fn test_two_depositors_split_yield_pro_rata() {
@@ -196,7 +248,7 @@ fn test_deposit_zero_reverts() {
 }
 
 #[test]
-#[should_panic(expected: 'insufficient reserve')]
+#[should_panic(expected: 'insufficient liquidity')]
 fn test_redeem_over_reserve_reverts() {
     let (_usdc, _agusd, vault) = setup(1000000);
     let v = IAgamaVaultDispatcher { contract_address: vault };

@@ -22,6 +22,7 @@ invoke() { sncast --wait invoke --contract-address "$1" --function "$2" --callda
 echo "Declaring classes..."
 AGUSD_CH=$(declare_class AgamaUSD)
 VAULT_CH=$(declare_class AgamaVault)
+POOL_CH=$(declare_class LendingPool)
 ORACLE_CH=$(declare_class NavOracle)
 ALLOC_CH=$(declare_class AllocationEngine)
 QUEUE_CH=$(declare_class WithdrawalQueue)
@@ -34,8 +35,19 @@ ORACLE=$(deploy "$ORACLE_CH" "$OWNER" 1000000 0 500 0 604800)
 ALLOC=$(deploy "$ALLOC_CH" "$OWNER" "$ORACLE")
 QUEUE=$(deploy "$QUEUE_CH" "$OWNER")
 
+# The four Agama lending pools, each with its own APR (bps). Constructor:
+# (owner=admin, vault, name felt252, apr_bps). The vault funds/defunds; admin sets APR.
+POOL_A=$(deploy "$POOL_CH" "$OWNER" "$VAULT" "$(printf '0x%s' "$(echo -n 'Pool A' | xxd -p)")" 1200) # private credit 12%
+POOL_B=$(deploy "$POOL_CH" "$OWNER" "$VAULT" "$(printf '0x%s' "$(echo -n 'Pool B' | xxd -p)")" 500)  # tokenized treasuries 5%
+POOL_C=$(deploy "$POOL_CH" "$OWNER" "$VAULT" "$(printf '0x%s' "$(echo -n 'Pool C' | xxd -p)")" 700)  # bonds 7%
+POOL_D=$(deploy "$POOL_CH" "$OWNER" "$VAULT" "$(printf '0x%s' "$(echo -n 'Pool D' | xxd -p)")" 900)  # onchain RWA yield 9%
+
 echo "Wiring..."
 invoke "$AGUSD" set_minter "$VAULT"   # only the vault can mint/burn agUSD (shares)
+invoke "$VAULT" register_pool "$POOL_A"
+invoke "$VAULT" register_pool "$POOL_B"
+invoke "$VAULT" register_pool "$POOL_C"
+invoke "$VAULT" register_pool "$POOL_D"
 
 cat <<EOF
 
@@ -43,6 +55,10 @@ Agama production stack (Sepolia)
   USDC             $USDC
   AgamaUSD         $AGUSD   (yield-bearing share token)
   AgamaVault       $VAULT
+  LendingPool A    $POOL_A  (private credit, 12%)
+  LendingPool B    $POOL_B  (tokenized treasuries, 5%)
+  LendingPool C    $POOL_C  (bonds, 7%)
+  LendingPool D    $POOL_D  (onchain RWA yield, 9%)
   NavOracle        $ORACLE
   AllocationEngine $ALLOC
   WithdrawalQueue  $QUEUE

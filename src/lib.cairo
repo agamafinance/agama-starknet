@@ -13,6 +13,7 @@ pub mod agama_anonymizer;
 pub mod agama_pool_vault;
 pub mod agusd;
 pub mod allocation_engine;
+pub mod lending_pool;
 pub mod mock_usdc;
 pub mod nav_oracle;
 pub mod pool_adapter;
