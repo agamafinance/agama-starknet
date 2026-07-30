@@ -23,6 +23,11 @@ test = "snforge test"
 [tool.scarb]
 allow-prebuilt-plugins = ["snforge_std"]
 
+[[tool.snforge.fork]]
+name = "SEPOLIA"
+url = "https://starknet-sepolia-rpc.publicnode.com"
+block_id.tag = "latest"
+
 # Visit https://foundry-rs.github.io/starknet-foundry/appendix/scarb-toml.html for more information
 
 # [tool.snforge]                                             # Define `snforge` tool section
