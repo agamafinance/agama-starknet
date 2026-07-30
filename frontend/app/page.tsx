@@ -21,6 +21,18 @@ export default function Home() {
     }
   }, []);
 
+  // Silently reconnect a previously-authorized wallet on page load.
+  useEffect(() => {
+    connect({ modalMode: "neverAsk", dappName: "Agama" })
+      .then((res: any) => {
+        if (res?.wallet) {
+          setWallet(res.wallet);
+          setAddress(res?.connectorData?.account || res.wallet.selectedAddress || "");
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const disconnectWallet = useCallback(async () => {
     await disconnect();
     setWallet(null);
