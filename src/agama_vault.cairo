@@ -22,11 +22,11 @@ pub trait IAgamaVault<TContractState> {
 
 #[starknet::contract]
 pub mod AgamaVault {
-    use starknet::{ContractAddress, get_caller_address, get_contract_address};
+    use agama_starknet::mock_usdc::{IERC20Dispatcher, IERC20DispatcherTrait};
     use starknet::storage::{
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
     };
-    use agama_starknet::mock_usdc::{IERC20Dispatcher, IERC20DispatcherTrait};
+    use starknet::{ContractAddress, get_caller_address, get_contract_address};
     use super::IAgamaVault;
 
     const BPS_DENOM: u256 = 10000;

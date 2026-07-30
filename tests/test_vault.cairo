@@ -1,12 +1,12 @@
-use snforge_std::{
-    declare, ContractClassTrait, DeclareResultTrait, start_cheat_caller_address,
-    stop_cheat_caller_address,
-};
-use starknet::ContractAddress;
+use agama_starknet::agama_vault::{IAgamaVaultDispatcher, IAgamaVaultDispatcherTrait};
 use agama_starknet::mock_usdc::{
     IERC20Dispatcher, IERC20DispatcherTrait, IMockUsdcDispatcher, IMockUsdcDispatcherTrait,
 };
-use agama_starknet::agama_vault::{IAgamaVaultDispatcher, IAgamaVaultDispatcherTrait};
+use snforge_std::{
+    ContractClassTrait, DeclareResultTrait, declare, start_cheat_caller_address,
+    stop_cheat_caller_address,
+};
+use starknet::ContractAddress;
 
 fn admin() -> ContractAddress {
     0x0a11ce.try_into().unwrap()

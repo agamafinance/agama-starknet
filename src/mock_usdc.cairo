@@ -22,10 +22,10 @@ pub trait IMockUsdc<TContractState> {
 
 #[starknet::contract]
 pub mod MockUsdc {
-    use starknet::{ContractAddress, get_caller_address};
     use starknet::storage::{
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
     };
+    use starknet::{ContractAddress, get_caller_address};
     use super::{IERC20, IMockUsdc};
 
     #[storage]

@@ -9,7 +9,7 @@
 // and `agama_anonymizer` reproduces Starknet's official lending-anonymizer pattern
 // (starkware-libs/starknet-privacy), which is how a lending protocol composes with
 // the native shielded pool.
-pub mod mock_usdc;
-pub mod agama_vault;
-pub mod agama_pool_vault;
 pub mod agama_anonymizer;
+pub mod agama_pool_vault;
+pub mod agama_vault;
+pub mod mock_usdc;

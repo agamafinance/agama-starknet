@@ -44,10 +44,10 @@ pub mod errors {
 
 #[starknet::contract]
 pub mod AgamaLendingAnonymizer {
+    use agama_starknet::agama_pool_vault::{IVTokenDispatcher, IVTokenDispatcherTrait};
+    use agama_starknet::mock_usdc::{IERC20Dispatcher, IERC20DispatcherTrait};
     use core::num::traits::Zero;
     use starknet::{ContractAddress, get_caller_address, get_contract_address};
-    use agama_starknet::mock_usdc::{IERC20Dispatcher, IERC20DispatcherTrait};
-    use agama_starknet::agama_pool_vault::{IVTokenDispatcher, IVTokenDispatcherTrait};
     use super::{IAgamaLendingAnonymizer, LendingOperation, OpenNoteDeposit, errors};
 
     #[storage]

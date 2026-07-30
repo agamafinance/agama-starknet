@@ -1,12 +1,14 @@
-use snforge_std::{
-    declare, ContractClassTrait, DeclareResultTrait, start_cheat_caller_address,
-    stop_cheat_caller_address,
-};
-use starknet::ContractAddress;
-use agama_starknet::mock_usdc::{IERC20Dispatcher, IERC20DispatcherTrait, IMockUsdcDispatcher, IMockUsdcDispatcherTrait};
 use agama_starknet::agama_anonymizer::{
     IAgamaLendingAnonymizerDispatcher, IAgamaLendingAnonymizerDispatcherTrait, LendingOperation,
 };
+use agama_starknet::mock_usdc::{
+    IERC20Dispatcher, IERC20DispatcherTrait, IMockUsdcDispatcher, IMockUsdcDispatcherTrait,
+};
+use snforge_std::{
+    ContractClassTrait, DeclareResultTrait, declare, start_cheat_caller_address,
+    stop_cheat_caller_address,
+};
+use starknet::ContractAddress;
 
 // Stands in for the native STRK20 privacy pool that drives the anonymizer.
 fn privacy_pool() -> ContractAddress {

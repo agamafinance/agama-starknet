@@ -15,11 +15,11 @@ pub trait IVToken<T> {
 // vault itself (standard ERC-4626), so it also implements ERC20.
 #[starknet::contract]
 pub mod AgamaPoolVault {
-    use starknet::{ContractAddress, get_caller_address, get_contract_address};
+    use agama_starknet::mock_usdc::{IERC20, IERC20Dispatcher, IERC20DispatcherTrait};
     use starknet::storage::{
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
     };
-    use agama_starknet::mock_usdc::{IERC20, IERC20Dispatcher, IERC20DispatcherTrait};
+    use starknet::{ContractAddress, get_caller_address, get_contract_address};
     use super::IVToken;
 
     #[storage]
@@ -47,14 +47,18 @@ pub mod AgamaPoolVault {
             shares
         }
         fn redeem(
-            ref self: ContractState, shares: u256, receiver: ContractAddress, owner: ContractAddress,
+            ref self: ContractState,
+            shares: u256,
+            receiver: ContractAddress,
+            owner: ContractAddress,
         ) -> u256 {
             let bal = self.balances.entry(owner).read();
             assert(bal >= shares, 'insufficient shares');
             self.balances.entry(owner).write(bal - shares);
             self.supply.write(self.supply.read() - shares);
             let assets = shares; // 1:1
-            IERC20Dispatcher { contract_address: self.underlying.read() }.transfer(receiver, assets);
+            IERC20Dispatcher { contract_address: self.underlying.read() }
+                .transfer(receiver, assets);
             assets
         }
     }
