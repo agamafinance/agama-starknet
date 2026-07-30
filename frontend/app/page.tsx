@@ -1,6 +1,5 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { connect, disconnect } from "starknetkit";
 import { ADDRESSES, EXPLORER } from "../lib/config";
 import { depositCalls, fromUnits, readU256, stakeCalls, toUnits } from "../lib/agama";
 
@@ -13,28 +12,26 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
 
   const connectWallet = useCallback(async () => {
-    const res: any = await connect({ modalMode: "alwaysAsk", dappName: "Agama" });
-    const w = res?.wallet;
-    if (w) {
-      setWallet(w);
-      setAddress(res?.connectorData?.account || w.selectedAddress || "");
+    try {
+      const { connect } = await import("starknetkit");
+      const res: any = await connect({ modalMode: "alwaysAsk", dappName: "Agama" });
+      const w = res?.wallet;
+      if (w) {
+        setWallet(w);
+        setAddress(res?.connectorData?.account || w.selectedAddress || "");
+      }
+    } catch (e: any) {
+      setStatus("Connect failed: " + (e?.message || String(e)));
     }
   }, []);
 
-  // Silently reconnect a previously-authorized wallet on page load.
-  useEffect(() => {
-    connect({ modalMode: "neverAsk", dappName: "Agama" })
-      .then((res: any) => {
-        if (res?.wallet) {
-          setWallet(res.wallet);
-          setAddress(res?.connectorData?.account || res.wallet.selectedAddress || "");
-        }
-      })
-      .catch(() => {});
-  }, []);
-
   const disconnectWallet = useCallback(async () => {
-    await disconnect();
+    try {
+      const { disconnect } = await import("starknetkit");
+      await disconnect();
+    } catch {
+      /* ignore */
+    }
     setWallet(null);
     setAddress("");
     setBal({ usdc: 0n, agusd: 0n, sagusd: 0n });
@@ -140,9 +137,6 @@ export default function Home() {
             Stake → sagUSD
           </button>
         </div>
-        {!ADDRESSES.sagusd && (
-          <div className="status">Staking is disabled until sagUSD is deployed (set it in lib/config.ts).</div>
-        )}
         {status && <div className="status">{status}</div>}
       </div>
 
