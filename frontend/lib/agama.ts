@@ -9,7 +9,12 @@ export async function readU256(
   calldata: string[] = [],
 ): Promise<bigint> {
   if (!address) return 0n;
-  const res: any = await provider.callContract({ contractAddress: address, entrypoint, calldata });
+  // Read on the "latest" block: PublicNode (RPC 0.10) rejects the default
+  // "pending" block tag that starknet.js v6 would otherwise use.
+  const res: any = await provider.callContract(
+    { contractAddress: address, entrypoint, calldata },
+    "latest",
+  );
   const arr: string[] = Array.isArray(res) ? res : res.result;
   return uint256.uint256ToBN({ low: arr[0], high: arr[1] });
 }
