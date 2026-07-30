@@ -17,16 +17,21 @@ Everything is tested with `snforge` (unit + fork tests) and exercised on Starkne
 
 ![Agama on Starknet — architecture](docs/architecture.jpg)
 
-An LP deposits USDC, shielded through the native STRK20 privacy pool, and mints `agUSD`. The
-vault auto-allocates the reserve across the Agama lending pools; yield flows back to `agUSD`,
-so the single token is what LPs hold, redeem, and earn on.
+An LP deposits USDC, shielded through the native STRK20 privacy pool, and mints `agUSD`. Behind
+`agUSD` sits the vault: an ERC-4626-style share token whose **share price indexes on the
+aggregate assets under management** across the four Agama lending pools — Pool A (private
+credit), Pool B (tokenized treasuries), Pool C (bonds), Pool D (on-chain RWA yield). The
+allocation engine deploys the reserve into those pools under concentration caps, the NAV oracle
+marks their value, and realized yield is pushed back into the vault (`distribute`), lifting the
+`agUSD` share price. So the single token is what LPs hold, redeem, and earn on: 1 `agUSD` is
+worth `total_assets / agUSD_supply` USDC, and that ratio only grows as the pools return yield.
 
 ## Contracts (`src/`)
 
 | Contract | Role |
 |---|---|
-| `agusd.cairo` | `AgamaUSD` — synthetic dollar. OZ ERC20, 6 decimals, mint/burn restricted to the vault (minter), owner-set minter. |
-| `vault.cairo` | `AgamaVault` — deposit USDC → mint `agUSD` 1:1; redeem → burn `agUSD` and return USDC; holds the reserve. |
+| `agusd.cairo` | `AgamaUSD` — the yield-bearing LP **share token**. OZ ERC20, 6 decimals, mint/burn restricted to the vault (minter), owner-set minter. |
+| `vault.cairo` | `AgamaVault` — the yield-bearing core (ERC-4626-style over USDC). `deposit` mints `agUSD` shares at the current price; `redeem` burns shares for USDC; `distribute` pushes RWA yield in so the share price rises. `total_assets` is an internal counter, closing the classic ERC-4626 donation/inflation vector. |
 | `nav_oracle.cairo` | `NavOracle` — pushes RWA NAV with three checks (authorized reporter, monotonic timestamp, ≤5% deviation else admin override) and a staleness gate that blocks allocations/withdrawals. |
 | `allocation_engine.cairo` | `AllocationEngine` — admin pool registration (no self-listing), per-pool **concentration caps** enforced on-chain, allocations blocked while the oracle is stale. |
 | `withdrawal_queue.cairo` | `WithdrawalQueue` — FIFO redemptions settled in order as USDC returns from settlement. |
@@ -78,15 +83,16 @@ sncast declare --contract-name AgamaVault       # Sepolia (default profile)
 
 ## Live on Sepolia
 
-The production stack deploys with `scripts/deploy_sepolia.sh` and is exercised end-to-end
-with `scripts/e2e_sepolia.sh` (see [`docs/e2e-sepolia.md`](docs/e2e-sepolia.md) for the run
-with tx hashes: vault redeem/deposit round-trip, NAV oracle push at the deviation cap, and
-withdrawal-queue drain — all real transactions).
+The production stack deploys with `scripts/deploy_sepolia.sh` and is exercised end-to-end with
+real transactions (see [`docs/e2e-sepolia.md`](docs/e2e-sepolia.md) for tx hashes): the
+yield-bearing round-trip (deposit USDC → `distribute` RWA yield → the `agUSD` share price rises
+→ redeem returns the appreciated USDC), the NAV oracle push at the deviation cap, and the
+withdrawal-queue drain.
 
 | Contract | Address |
 |---|---|
-| AgamaUSD (agUSD) | `0x0143b8bf5144be0c0568410b6f8c3eb90629ddadfd0da9ac3a90cb35ec1b6006` |
-| AgamaVault | `0x07909652ce28348eabfdce6b67a82228513798c70d5e06ec23fc2028abc261b5` |
+| AgamaUSD (agUSD, yield-bearing share) | `0x05563a90a1368c73dd6ed86418ecabbd245d9d6dfdf1e23e09eb9141eb66c345` |
+| AgamaVault | `0x06bd19937bf9bf258cf52c244a247d4ecc9ee08f4e553f67fadc971346cb3604` |
 | NavOracle | `0x0524c9683f467d7c0ddc51b0b83352e33a2300bae006af90d9eb9ecad6349679` |
 | WithdrawalQueue | `0x00a8f8cae024f97dd63c5fb90444d49ede807b23b25441d563b77450a8431493` |
 | AllocationEngine | `0x013be6562483ab26ea3b1609580b8246eeb3542fbd57c7c583c036a46dc72bb9` |

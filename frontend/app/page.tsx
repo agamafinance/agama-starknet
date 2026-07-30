@@ -1,14 +1,21 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { ADDRESSES, EXPLORER } from "../lib/config";
-import { depositCalls, fromUnits, readU256, redeemCalls, toUnits } from "../lib/agama";
+import {
+  depositCalls,
+  fromUnits,
+  readU256,
+  redeemCalls,
+  redeemableUsdc,
+  toUnits,
+} from "../lib/agama";
 import { connectWalletObject, detectWalletsWithRetry, walletLabel } from "../lib/wallet";
 
 export default function Home() {
   const [wallet, setWallet] = useState<any>(null);
   const [address, setAddress] = useState<string>("");
   const [picker, setPicker] = useState<any[]>([]);
-  const [bal, setBal] = useState({ usdc: 0n, agusd: 0n });
+  const [bal, setBal] = useState({ usdc: 0n, agusd: 0n, agusdValue: 0n });
   const [amount, setAmount] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
@@ -48,7 +55,7 @@ export default function Home() {
     setWallet(null);
     setAddress("");
     setPicker([]);
-    setBal({ usdc: 0n, agusd: 0n });
+    setBal({ usdc: 0n, agusd: 0n, agusdValue: 0n });
   }, []);
 
   const refresh = useCallback(async (addr: string) => {
@@ -58,7 +65,8 @@ export default function Home() {
         readU256(ADDRESSES.usdc, "balanceOf", [addr]),
         readU256(ADDRESSES.agusd, "balance_of", [addr]),
       ]);
-      setBal({ usdc, agusd });
+      const agusdValue = await redeemableUsdc(agusd);
+      setBal({ usdc, agusd, agusdValue });
     } catch {
       /* ignore transient read errors */
     }
@@ -126,7 +134,14 @@ export default function Home() {
           </div>
           <div className="row">
             <span className="muted">agUSD</span>
-            <span>{fromUnits(bal.agusd)}</span>
+            <span>
+              {fromUnits(bal.agusd)}
+              {bal.agusd > 0n && (
+                <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>
+                  ≈ {fromUnits(bal.agusdValue)} USDC
+                </span>
+              )}
+            </span>
           </div>
         </div>
       )}

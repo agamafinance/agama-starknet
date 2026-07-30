@@ -1,14 +1,24 @@
 use starknet::ContractAddress;
 
-// The Agama vault holds the USDC reserve and is the sole minter of agUSD.
-// deposit: pull USDC (shielded via STRK20 in production) and mint agUSD 1:1.
-// redeem: burn agUSD and return USDC from the reserve.
-// Allocation across lending pools is handled by the Allocation Engine (separate
-// contract); this vault owns deposit/redeem/reserve. Immutable, Ownable admin.
+// The Agama vault is the yield-bearing core. LPs deposit USDC and receive `agUSD`
+// *shares*; the vault tracks total assets (USDC under management) and agUSD's total
+// supply is the share supply. When real-world yield lands via `distribute` (USDC
+// pulled in without minting shares), total assets grow while supply does not, so each
+// agUSD becomes worth more USDC — agUSD is itself the yield-bearing token, with no
+// separate staking layer. Redeem burns shares and returns USDC at the current price.
+//
+// total_assets is an internal counter (moved only by deposit / redeem / distribute),
+// not the raw USDC balance, so a bare token donation cannot skew the share price —
+// this closes the classic ERC-4626 first-depositor inflation vector. Immutable,
+// Ownable admin; only the owner can distribute yield.
 #[starknet::interface]
 pub trait IAgamaVault<T> {
-    fn deposit(ref self: T, amount: u256);
-    fn redeem(ref self: T, amount: u256);
+    fn deposit(ref self: T, assets: u256) -> u256;
+    fn redeem(ref self: T, shares: u256) -> u256;
+    fn distribute(ref self: T, amount: u256);
+    fn total_assets(self: @T) -> u256;
+    fn convert_to_shares(self: @T, assets: u256) -> u256;
+    fn convert_to_assets(self: @T, shares: u256) -> u256;
     fn reserve(self: @T) -> u256;
     fn usdc(self: @T) -> ContractAddress;
     fn agusd(self: @T) -> ContractAddress;
@@ -33,7 +43,7 @@ pub mod AgamaVault {
     struct Storage {
         usdc: ContractAddress,
         agusd: ContractAddress,
-        reserve: u256,
+        total_assets: u256,
         #[substorage(v0)]
         ownable: OwnableComponent::Storage,
     }
@@ -43,6 +53,7 @@ pub mod AgamaVault {
     enum Event {
         Deposit: Deposit,
         Redeem: Redeem,
+        Distribute: Distribute,
         #[flat]
         OwnableEvent: OwnableComponent::Event,
     }
@@ -50,12 +61,19 @@ pub mod AgamaVault {
     #[derive(Drop, starknet::Event)]
     struct Deposit {
         user: ContractAddress,
-        amount: u256,
+        assets: u256,
+        shares: u256,
     }
 
     #[derive(Drop, starknet::Event)]
     struct Redeem {
         user: ContractAddress,
+        shares: u256,
+        assets: u256,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct Distribute {
         amount: u256,
     }
 
@@ -71,33 +89,79 @@ pub mod AgamaVault {
         self.agusd.write(agusd);
     }
 
+    #[generate_trait]
+    impl Internal of InternalTrait {
+        // Share supply == agUSD total supply (the vault is agUSD's sole minter).
+        fn share_supply(self: @ContractState) -> u256 {
+            IERC20Dispatcher { contract_address: self.agusd.read() }.total_supply()
+        }
+    }
+
     #[abi(embed_v0)]
     impl VaultImpl of IAgamaVault<ContractState> {
-        fn deposit(ref self: ContractState, amount: u256) {
-            assert(amount > 0, 'amount is zero');
+        fn deposit(ref self: ContractState, assets: u256) -> u256 {
+            assert(assets > 0, 'amount is zero');
             let user = get_caller_address();
-            // Pull USDC from the user (shielded through STRK20 in production).
+            // Price from state BEFORE the new assets land, then pull and mint.
+            let shares = self.convert_to_shares(assets);
             IERC20Dispatcher { contract_address: self.usdc.read() }
-                .transfer_from(user, get_contract_address(), amount);
-            self.reserve.write(self.reserve.read() + amount);
-            // Mint agUSD 1:1.
-            IAgamaUSDDispatcher { contract_address: self.agusd.read() }.mint(user, amount);
-            self.emit(Deposit { user, amount });
+                .transfer_from(user, get_contract_address(), assets);
+            self.total_assets.write(self.total_assets.read() + assets);
+            IAgamaUSDDispatcher { contract_address: self.agusd.read() }.mint(user, shares);
+            self.emit(Deposit { user, assets, shares });
+            shares
         }
 
-        fn redeem(ref self: ContractState, amount: u256) {
-            assert(amount > 0, 'amount is zero');
+        fn redeem(ref self: ContractState, shares: u256) -> u256 {
+            assert(shares > 0, 'amount is zero');
             let user = get_caller_address();
-            assert(self.reserve.read() >= amount, 'insufficient reserve');
-            // Burn the caller's agUSD, then return USDC.
-            IAgamaUSDDispatcher { contract_address: self.agusd.read() }.burn(user, amount);
-            self.reserve.write(self.reserve.read() - amount);
-            IERC20Dispatcher { contract_address: self.usdc.read() }.transfer(user, amount);
-            self.emit(Redeem { user, amount });
+            let assets = self.convert_to_assets(shares);
+            assert(self.total_assets.read() >= assets, 'insufficient reserve');
+            // Burn the caller's shares, then return USDC at the current price.
+            IAgamaUSDDispatcher { contract_address: self.agusd.read() }.burn(user, shares);
+            self.total_assets.write(self.total_assets.read() - assets);
+            IERC20Dispatcher { contract_address: self.usdc.read() }.transfer(user, assets);
+            self.emit(Redeem { user, shares, assets });
+            assets
         }
 
+        // Push real-world yield in: pull USDC and grow total assets, minting no shares,
+        // so every agUSD's redemption value rises. Owner-only (keeper / allocation).
+        fn distribute(ref self: ContractState, amount: u256) {
+            self.ownable.assert_only_owner();
+            assert(amount > 0, 'amount is zero');
+            IERC20Dispatcher { contract_address: self.usdc.read() }
+                .transfer_from(get_caller_address(), get_contract_address(), amount);
+            self.total_assets.write(self.total_assets.read() + amount);
+            self.emit(Distribute { amount });
+        }
+
+        fn total_assets(self: @ContractState) -> u256 {
+            self.total_assets.read()
+        }
+
+        fn convert_to_shares(self: @ContractState, assets: u256) -> u256 {
+            let supply = self.share_supply();
+            let ta = self.total_assets.read();
+            if supply == 0 || ta == 0 {
+                assets
+            } else {
+                assets * supply / ta
+            }
+        }
+
+        fn convert_to_assets(self: @ContractState, shares: u256) -> u256 {
+            let supply = self.share_supply();
+            if supply == 0 {
+                0
+            } else {
+                shares * self.total_assets.read() / supply
+            }
+        }
+
+        // Compatibility alias: assets under management (== USDC reserve).
         fn reserve(self: @ContractState) -> u256 {
-            self.reserve.read()
+            self.total_assets.read()
         }
         fn usdc(self: @ContractState) -> ContractAddress {
             self.usdc.read()

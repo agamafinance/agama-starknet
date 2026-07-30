@@ -3,8 +3,8 @@
 #
 # Prereqs: scarb + starknet-foundry on PATH, an `agama_deployer` account funded with
 # STRK, and snfoundry.toml's default profile pointing at a working RPC (PublicNode).
-# Declaring the larger contracts (AllocationEngine, StakedAgamaUSD) needs a few tens
-# of STRK of headroom because sncast sets a high max fee bound; top up via
+# Declaring the larger contracts (AllocationEngine) needs a few tens of STRK of
+# headroom because sncast sets a high max fee bound; top up via
 # https://starknet-faucet.vercel.app if a declare fails with "resources exceed balance".
 #
 # Usage: scripts/deploy_sepolia.sh
@@ -24,7 +24,6 @@ AGUSD_CH=$(declare_class AgamaUSD)
 VAULT_CH=$(declare_class AgamaVault)
 ORACLE_CH=$(declare_class NavOracle)
 ALLOC_CH=$(declare_class AllocationEngine)
-SAGUSD_CH=$(declare_class StakedAgamaUSD)
 QUEUE_CH=$(declare_class WithdrawalQueue)
 
 echo "Deploying instances..."
@@ -33,20 +32,18 @@ VAULT=$(deploy "$VAULT_CH" "$OWNER" "$USDC" "$AGUSD")
 # initial NAV=1_000_000 (u256), 5% deviation cap (500 bps), 7-day staleness (604800s)
 ORACLE=$(deploy "$ORACLE_CH" "$OWNER" 1000000 0 500 0 604800)
 ALLOC=$(deploy "$ALLOC_CH" "$OWNER" "$ORACLE")
-SAGUSD=$(deploy "$SAGUSD_CH" "$AGUSD")
 QUEUE=$(deploy "$QUEUE_CH" "$OWNER")
 
 echo "Wiring..."
-invoke "$AGUSD" set_minter "$VAULT"   # only the vault can mint/burn agUSD
+invoke "$AGUSD" set_minter "$VAULT"   # only the vault can mint/burn agUSD (shares)
 
 cat <<EOF
 
 Agama production stack (Sepolia)
   USDC             $USDC
-  AgamaUSD         $AGUSD
+  AgamaUSD         $AGUSD   (yield-bearing share token)
   AgamaVault       $VAULT
   NavOracle        $ORACLE
   AllocationEngine $ALLOC
-  StakedAgamaUSD   $SAGUSD
   WithdrawalQueue  $QUEUE
 EOF

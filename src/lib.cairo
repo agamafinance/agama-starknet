@@ -1,9 +1,9 @@
 // Agama on Starknet — integration proof of concept.
 //
-// Mirrors the core of Agama's live Soroban logic (deposit -> mint agUSD 1:1,
-// allocation engine with on-chain concentration caps, redeem) in Cairo, so the
-// flow can be tested on Starknet. In production the USDC deposit leg is shielded
-// through Starknet's native STRK20 pool.
+// Mirrors the core of Agama's live Soroban logic (deposit USDC -> mint agUSD
+// shares, yield accrues to agUSD via the vault, allocation engine with on-chain
+// concentration caps, redeem) in Cairo, so the flow can be tested on Starknet. In
+// production the USDC deposit leg is shielded through Starknet's native STRK20 pool.
 //
 // STRK20 integration: `agama_pool_vault` exposes the ERC-4626 / SNIP-22 interface
 // and `agama_anonymizer` reproduces Starknet's official lending-anonymizer pattern
@@ -16,6 +16,5 @@ pub mod allocation_engine;
 pub mod mock_usdc;
 pub mod nav_oracle;
 pub mod pool_adapter;
-pub mod sagusd;
 pub mod vault;
 pub mod withdrawal_queue;

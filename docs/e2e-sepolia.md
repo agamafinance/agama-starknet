@@ -9,43 +9,49 @@ A single real-transaction sweep with state assertions and on-chain guard checks:
 
 | Step | Assertion | Result |
 |---|---|---|
-| deposit 5 USDC → agUSD | reserve 25 → 30 | ✓ |
+| deposit 5 USDC → agUSD | reserve += 5 | ✓ |
 | NAV push (fresh) | nav = 1_050_000, not stale | ✓ |
 | NAV deviation guard (+25%) | reverts `deviation too large` | ✓ |
-| allocate within cap | deployed 3 → 4 | ✓ |
+| allocate within cap | deployed += 1 | ✓ |
 | concentration-cap guard | reverts `cap breached` | ✓ |
-| deallocate | deployed 4 → 3 | ✓ |
-| stake / distribute / unstake | staking pool drains to 0 (yield returned) | ✓ |
-| redeem 5 agUSD → USDC | reserve 30 → 25 | ✓ |
+| deallocate | deployed back to start | ✓ |
+| distribute yield | total_assets += 2 (agUSD share price rises) | ✓ |
+| redeem all agUSD → USDC | shares burned to 0 (principal + yield returned) | ✓ |
 | withdrawal queue enqueue/process | pending → 0 | ✓ |
 
-The step-by-step run below (`scripts/e2e_sepolia.sh` + the allocation/staking flow) lists the
-individual transaction hashes.
+The step-by-step run below (`scripts/e2e_sepolia.sh`) lists the individual transaction hashes;
+the live yield round-trip is section 1.
 
 ## Deployed contracts
 
 | Contract | Address |
 |---|---|
-| AgamaUSD (agUSD) | `0x0143b8bf5144be0c0568410b6f8c3eb90629ddadfd0da9ac3a90cb35ec1b6006` |
-| AgamaVault | `0x07909652ce28348eabfdce6b67a82228513798c70d5e06ec23fc2028abc261b5` |
+| AgamaUSD (agUSD, yield-bearing share) | `0x05563a90a1368c73dd6ed86418ecabbd245d9d6dfdf1e23e09eb9141eb66c345` |
+| AgamaVault | `0x06bd19937bf9bf258cf52c244a247d4ecc9ee08f4e553f67fadc971346cb3604` |
 | NavOracle | `0x0524c9683f467d7c0ddc51b0b83352e33a2300bae006af90d9eb9ecad6349679` |
 | WithdrawalQueue | `0x00a8f8cae024f97dd63c5fb90444d49ede807b23b25441d563b77450a8431493` |
 | AllocationEngine | `0x013be6562483ab26ea3b1609580b8246eeb3542fbd57c7c583c036a46dc72bb9` |
-| StakedAgamaUSD (sagUSD) | `0x0129c466978f096b28e64cc086dea792bd1134e284915bf331cca40670160602` |
 
 USDC (Circle native): `0x0512feac6339ff7889822cb5aa2a86c848e9d392bb0e3e237c008674feed8343`.
 The full stack is deployed and exercised end-to-end.
 
 ## Run results
 
-### 1. Vault redeem / deposit round-trip
-agUSD 15.0 → redeem 5 → deposit 5 → 15.0 (conserved), all with native USDC.
+### 1. Yield-bearing round-trip (agUSD share price rises with distributed yield)
+Deposit 3 USDC → mint 3 agUSD shares (price 1.0). Owner distributes 2 USDC of RWA yield, so
+total assets grow to 5 while supply stays 3 → **3 agUSD is now worth 5 USDC** (share price
+1.667). Redeeming the 3 shares returns the appreciated 5 USDC. Verified on-chain:
+`convert_to_assets(3_000_000) = 5_000_000`.
 
 | Step | Tx |
 |---|---|
-| redeem 5 agUSD → USDC | [`0x10eac24c…`](https://sepolia.voyager.online/tx/0x10eac24c78c4f7cab3add8f886743b5fbd9b9a231f376ee6668c34547198869) |
-| approve 5 USDC | [`0x3302ddf3…`](https://sepolia.voyager.online/tx/0x3302ddf321b6a7d8d7b93d6797ff5df5cca6fbea4528c1473365f46886e88ca) |
-| deposit 5 USDC → agUSD | [`0x58fa66ae…`](https://sepolia.voyager.online/tx/0x58fa66ae516d26350d39af1bfa79ba05042bb7295806aeaaced642cd59f7219) |
+| approve 3 USDC | [`0x2137644b…`](https://sepolia.voyager.online/tx/0x2137644b045bb54618ad23bde109ca33814024874e91772ea22ece1be8bcd2b) |
+| deposit 3 USDC → 3 agUSD | [`0x36ffd4d7…`](https://sepolia.voyager.online/tx/0x36ffd4d76b92338d85da91d692149b7cfbabd48c23c0d5c2738aa75cdc40350) |
+| approve 2 USDC (yield) | [`0x3849d65d…`](https://sepolia.voyager.online/tx/0x3849d65d588b2f5485037a3137dd1e7a097d68fdf1eee53667c7eba8468815f) |
+| distribute 2 USDC | [`0x13d7a321…`](https://sepolia.voyager.online/tx/0x13d7a32104eb6e186487b9485b084e6f65d756be98b30e200a4b745fa700172) |
+| redeem 3 agUSD → 5 USDC | [`0x43649200…`](https://sepolia.voyager.online/tx/0x43649200090ace1bcc5c2b0ad9a983db93a532f252a069d9ba77429b00bf65d) |
+
+Result: share price 1.0 → 1.667, `agUSD supply = 0`, `total_assets = 0` after redeem (clean).
 
 ### 2. NAV oracle push
 `push_nav(1_050_000)` = +5% from 1_000_000, accepted at exactly the deviation cap; oracle fresh.
@@ -81,19 +87,5 @@ gated on a fresh NAV oracle.
 
 Result: `deployed(1) = 3`, `idle = 7`, `total_deployed = 3`.
 
-### 5. sagUSD staking with yield
-Deposit 10 USDC → agUSD, stake 5 → sagUSD, distribute 2 agUSD of yield into the pool, then
-unstake all shares. The share price grew 1.0 → 1.4, so unstaking 5 sagUSD returns **7 agUSD**
-(5 principal + 2 yield).
-
-| Step | Tx |
-|---|---|
-| approve USDC | [`0x1546eedf…`](https://sepolia.voyager.online/tx/0x1546eedfd10f8b9d90816dc29a3a1c8a5569063e39bd82910bee82d4fd9ba9e) |
-| deposit 10 USDC → agUSD | [`0x5b74cafc…`](https://sepolia.voyager.online/tx/0x5b74cafce7bcb65a4a457e0896acbccf9666e3e9fc195456461784edc26152f) |
-| approve agUSD → sagUSD | [`0x28b40a07…`](https://sepolia.voyager.online/tx/0x28b40a0747655bb8c1f3e69e98c92334d61690fd6c510dba5a5b0e0b14bd086) |
-| stake 5 agUSD | [`0x4102eee0…`](https://sepolia.voyager.online/tx/0x4102eee02280758e8c57fed35ef388c041985923a54e813dd3642cb4e2651cc) |
-| distribute 2 (yield) | [`0x3a33dbe4…`](https://sepolia.voyager.online/tx/0x3a33dbe4cb0f3aed8a42226764552175c8d8c4e620066702e8be34ec3d9d307) |
-| unstake 5 sagUSD → 7 agUSD | [`0x5372485e…`](https://sepolia.voyager.online/tx/0x5372485e4835291b8c40d0634439b304aa1e695883b844eea5d51338dcf8d34) |
-
-Result: `agUSD balance = 25` (15 + 10 deposited, with staked principal + yield returned),
-`sagUSD balance = 0`.
+The yield-bearing behavior itself (deposit → distribute → redeem-at-appreciated-price) is the
+round-trip in section 1 above; there is no separate staking token — agUSD is the yield token.

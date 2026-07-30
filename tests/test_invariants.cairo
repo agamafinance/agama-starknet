@@ -6,7 +6,6 @@ use agama_starknet::mock_usdc::{
     IERC20Dispatcher, IERC20DispatcherTrait, IMockUsdcDispatcher, IMockUsdcDispatcherTrait,
 };
 use agama_starknet::nav_oracle::{INavOracleDispatcher, INavOracleDispatcherTrait};
-use agama_starknet::sagusd::{IStakedAgamaUSDDispatcher, IStakedAgamaUSDDispatcherTrait};
 use agama_starknet::vault::{IAgamaVaultDispatcher, IAgamaVaultDispatcherTrait};
 use snforge_std::{
     ContractClassTrait, DeclareResultTrait, declare, start_cheat_block_timestamp_global,
@@ -65,36 +64,44 @@ fn fuzz_deposit_redeem_roundtrip(raw: u64) {
     assert(v.reserve() == 0, 'reserve empty');
 }
 
-// Invariant: with no yield, staking then unstaking returns exactly the staked agUSD.
+// Invariant: the sole depositor captures 100% of distributed yield — redeeming all
+// agUSD returns principal + all yield, and the reserve empties.
 #[test]
 #[fuzzer(runs: 25)]
-fn fuzz_sagusd_roundtrip_no_yield(raw: u64) {
+fn fuzz_sole_depositor_captures_all_yield(raw: u64, raw_yield: u64) {
     let amount: u256 = raw.into() + 1;
+    let yield_amt: u256 = raw_yield.into();
     let (usdc, agusd, vault) = stack();
+    let v = IAgamaVaultDispatcher { contract_address: vault };
+
     IMockUsdcDispatcher { contract_address: usdc }.mint(user(), amount);
     start_cheat_caller_address(usdc, user());
     IERC20Dispatcher { contract_address: usdc }.approve(vault, amount);
     stop_cheat_caller_address(usdc);
     start_cheat_caller_address(vault, user());
-    IAgamaVaultDispatcher { contract_address: vault }.deposit(amount);
+    let shares = v.deposit(amount);
     stop_cheat_caller_address(vault);
 
-    let mut sc = array![];
-    agusd.serialize(ref sc);
-    let (staking, _) = declare("StakedAgamaUSD").unwrap().contract_class().deploy(@sc).unwrap();
-    start_cheat_caller_address(agusd, user());
-    IERC20Dispatcher { contract_address: agusd }.approve(staking, amount);
-    stop_cheat_caller_address(agusd);
+    if yield_amt > 0 {
+        IMockUsdcDispatcher { contract_address: usdc }.mint(owner(), yield_amt);
+        start_cheat_caller_address(usdc, owner());
+        IERC20Dispatcher { contract_address: usdc }.approve(vault, yield_amt);
+        stop_cheat_caller_address(usdc);
+        start_cheat_caller_address(vault, owner());
+        v.distribute(yield_amt);
+        stop_cheat_caller_address(vault);
+    }
 
-    let s = IStakedAgamaUSDDispatcher { contract_address: staking };
-    start_cheat_caller_address(staking, user());
-    let shares = s.stake(amount);
-    s.unstake(shares);
-    stop_cheat_caller_address(staking);
+    start_cheat_caller_address(vault, user());
+    let out = v.redeem(shares);
+    stop_cheat_caller_address(vault);
 
+    assert(out == amount + yield_amt, 'sole lp gets all yield');
     assert(
-        IERC20Dispatcher { contract_address: agusd }.balance_of(user()) == amount, 'no-yield rt',
+        IERC20Dispatcher { contract_address: usdc }.balance_of(user()) == amount + yield_amt,
+        'usdc back + yield',
     );
+    assert(v.reserve() == 0, 'reserve empty');
 }
 
 // Invariant: a pool's deployed balance never exceeds its concentration cap.

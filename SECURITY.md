@@ -10,7 +10,7 @@ open public issues for security bugs.
 
 ## Audit scope (`src/`)
 
-`agusd` · `vault` · `nav_oracle` · `allocation_engine` · `sagusd` · `withdrawal_queue` ·
+`agusd` · `vault` · `nav_oracle` · `allocation_engine` · `withdrawal_queue` ·
 `pool_adapter` (VesuAdapter, OriginatorAdapter) · `agama_pool_vault` · `agama_anonymizer`.
 `mock_usdc` is test-only and out of scope.
 
@@ -31,10 +31,13 @@ open public issues for security bugs.
 
 ## Known considerations (for auditors)
 
-- **sagUSD first-depositor / inflation attack.** `StakedAgamaUSD` is a plain ERC-4626-style
-  vault; a first depositor can donate assets to inflate the share price and round later
-  deposits to zero shares. Mitigation to add before mainnet: a dead-shares bootstrap (mint a
-  small amount of shares to a burn address on first deposit) or virtual shares/assets offset.
+- **agUSD (vault) first-depositor / inflation attack.** `AgamaVault` is the ERC-4626-style
+  yield-bearing core: `agUSD` is its share token. The classic donation attack (transfer assets
+  straight to the vault to inflate the share price and round later deposits to zero shares) is
+  **structurally blocked here**: `total_assets` is an internal counter moved only by
+  `deposit` / `redeem` / owner-only `distribute`, not `USDC.balance_of(vault)`, so a bare token
+  transfer changes nothing. A dead-shares bootstrap or virtual-offset is still recommended as
+  defense-in-depth before mainnet against integer-rounding edge cases at tiny supplies.
 - **Socialized loss (V1, no tranching).** A NAV write-down reduces backing pro-rata across all
   agUSD holders; there is no junior/senior split yet.
 - **Reserve accounting vs. custody.** `AgamaVault.redeem` checks `reserve`; the allocation
@@ -48,6 +51,7 @@ open public issues for security bugs.
 
 ## Testing
 
-39 `snforge` tests (unit + Sepolia fork) plus fuzz tests on core invariants
-(`tests/test_invariants.cairo`): deposit/redeem round-trip, sagUSD stake/unstake round-trip
-with no yield, and the allocation concentration-cap invariant.
+40 `snforge` tests (unit + Sepolia fork) plus fuzz tests on core invariants
+(`tests/test_invariants.cairo`): deposit/redeem round-trip, the sole-depositor-captures-all-yield
+invariant (deposit → distribute → redeem returns principal + yield), and the allocation
+concentration-cap invariant.

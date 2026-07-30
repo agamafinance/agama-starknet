@@ -3,12 +3,12 @@
 # transactions, with state assertions and on-chain guard (revert) checks.
 #
 # Requires the deployed addresses as env vars (USDC, AGUSD, VAULT, ORACLE, ALLOC,
-# SAGUSD, QUEUE, OWNER) and the snfoundry.toml default profile. Reads use two RPCs to
-# ride out public-endpoint rate limits.
+# QUEUE, OWNER) and the snfoundry.toml default profile. Reads use two RPCs to ride out
+# public-endpoint rate limits.
 set -uo pipefail
 
 : "${USDC:?}"; : "${AGUSD:?}"; : "${VAULT:?}"; : "${ORACLE:?}"
-: "${ALLOC:?}"; : "${SAGUSD:?}"; : "${QUEUE:?}"; : "${OWNER:?}"
+: "${ALLOC:?}"; : "${QUEUE:?}"; : "${OWNER:?}"
 D="$OWNER"
 PUB="https://starknet-sepolia-rpc.publicnode.com"
 CART="https://api.cartridge.gg/x/starknet/sepolia"
@@ -43,15 +43,15 @@ echo "  guard(cap): $(rv 'cap breached' "$ALLOC" allocate 1 1000000 0)"
 send "$ALLOC" deallocate 1 1000000 0 >/dev/null
 chk "$(getv "$ALLOC" total_deployed)" "$TD0" "deployed after deallocate"
 
-echo "### T4 staking stake/distribute/unstake (yield)"
-send "$AGUSD" approve "$SAGUSD" 10000000 0 >/dev/null
-send "$SAGUSD" stake 5000000 0 >/dev/null; send "$SAGUSD" distribute 2000000 0 >/dev/null
-send "$SAGUSD" unstake 5000000 0 >/dev/null
-chk "$(getv "$SAGUSD" total_assets)" "0" "staking drained after unstake"
+echo "### T4 distribute yield -> agUSD share price rises"
+TA0=$(getv "$VAULT" total_assets)
+send "$USDC" approve "$VAULT" 2000000 0 >/dev/null; send "$VAULT" distribute 2000000 0 >/dev/null
+chk "$(getv "$VAULT" total_assets)" "$((TA0 + 2000000))" "assets after distribute (yield)"
 
-echo "### T5 redeem 5 agUSD -> USDC"
-R1=$(getv "$VAULT" reserve); send "$VAULT" redeem 5000000 0 >/dev/null
-chk "$(getv "$VAULT" reserve)" "$((R1 - 5000000))" "reserve after redeem"
+echo "### T5 redeem all agUSD -> USDC (principal + yield)"
+SH=$(getv "$AGUSD" balance_of "$D")
+send "$VAULT" redeem "$SH" 0 >/dev/null
+chk "$(getv "$AGUSD" balance_of "$D")" "0" "shares burned on full redeem"
 
 echo "### T6 withdrawal queue enqueue + process"
 send "$QUEUE" enqueue "$D" 1000000 0 >/dev/null; send "$QUEUE" process 1000000 0 >/dev/null

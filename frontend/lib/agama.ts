@@ -51,34 +51,18 @@ export function redeemCalls(amount: bigint): Call[] {
   ];
 }
 
-// Stake agUSD into sagUSD (approve, then stake).
-export function stakeCalls(amount: bigint): Call[] {
-  return [
-    {
-      contractAddress: ADDRESSES.agusd,
-      entrypoint: "approve",
-      calldata: [ADDRESSES.sagusd, ...u256Calldata(amount)],
-    },
-    {
-      contractAddress: ADDRESSES.sagusd,
-      entrypoint: "stake",
-      calldata: u256Calldata(amount),
-    },
-  ];
+// Current USDC value of `shares` agUSD (grows as yield is distributed to the vault).
+export async function redeemableUsdc(shares: bigint): Promise<bigint> {
+  if (shares <= 0n) return 0n;
+  const res: any = await provider.callContract(
+    { contractAddress: ADDRESSES.vault, entrypoint: "convert_to_assets", calldata: u256Calldata(shares) },
+    "latest",
+  );
+  const arr: string[] = Array.isArray(res) ? res : res.result;
+  return uint256.uint256ToBN({ low: arr[0], high: arr[1] });
 }
 
-// Unstake sagUSD shares back into agUSD (burns the caller's shares — no approve).
-export function unstakeCalls(shares: bigint): Call[] {
-  return [
-    {
-      contractAddress: ADDRESSES.sagusd,
-      entrypoint: "unstake",
-      calldata: u256Calldata(shares),
-    },
-  ];
-}
-
-// USDC / agUSD / sagUSD use 6 decimals.
+// USDC and agUSD both use 6 decimals.
 export const toUnits = (v: string): bigint => {
   const n = parseFloat(v || "0");
   if (!isFinite(n) || n <= 0) return 0n;
