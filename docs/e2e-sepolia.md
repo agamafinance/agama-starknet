@@ -1,7 +1,26 @@
 # E2E on Starknet Sepolia
 
-End-to-end run of the live stack via `scripts/e2e_sepolia.sh` — all real transactions,
-verifiable on [Voyager](https://sepolia.voyager.online).
+End-to-end runs against the live stack — all real transactions, verifiable on
+[Voyager](https://sepolia.voyager.online).
+
+## Acceptance run (`scripts/e2e_full.sh`) — 8/8 checks passed
+
+A single real-transaction sweep with state assertions and on-chain guard checks:
+
+| Step | Assertion | Result |
+|---|---|---|
+| deposit 5 USDC → agUSD | reserve 25 → 30 | ✓ |
+| NAV push (fresh) | nav = 1_050_000, not stale | ✓ |
+| NAV deviation guard (+25%) | reverts `deviation too large` | ✓ |
+| allocate within cap | deployed 3 → 4 | ✓ |
+| concentration-cap guard | reverts `cap breached` | ✓ |
+| deallocate | deployed 4 → 3 | ✓ |
+| stake / distribute / unstake | staking pool drains to 0 (yield returned) | ✓ |
+| redeem 5 agUSD → USDC | reserve 30 → 25 | ✓ |
+| withdrawal queue enqueue/process | pending → 0 | ✓ |
+
+The step-by-step run below (`scripts/e2e_sepolia.sh` + the allocation/staking flow) lists the
+individual transaction hashes.
 
 ## Deployed contracts
 
