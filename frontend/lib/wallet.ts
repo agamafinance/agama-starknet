@@ -5,24 +5,72 @@
 
 export type StarknetWindowObject = any;
 
-// Discover every injected wallet (window.starknet_argentX, window.starknet_braavos, …).
+// Known injection keys. Wallets also inject under other starknet_* keys, which
+// getOwnPropertyNames() picks up below; this list is the guaranteed-probe set.
+const CANDIDATE_KEYS = [
+  "starknet",
+  "starknet_argentX",
+  "starknet_ready",
+  "starknet_braavos",
+  "starknet_okxwallet",
+  "starknet_keplr",
+  "starknet_metamask",
+];
+
+function looksLikeWallet(obj: any): boolean {
+  return !!obj && typeof obj === "object" && (typeof obj.enable === "function" || typeof obj.request === "function");
+}
+
+// Discover every injected wallet. Wallets inject as NON-ENUMERABLE window
+// properties, so Object.keys() misses them — use getOwnPropertyNames() plus a
+// direct probe of the known keys, and dedupe by wallet id.
 export function detectWallets(): StarknetWindowObject[] {
   if (typeof window === "undefined") return [];
   const w = window as any;
   const seen = new Set<string>();
   const list: StarknetWindowObject[] = [];
-  for (const key of Object.keys(w)) {
-    if (!key.startsWith("starknet")) continue;
-    const obj = w[key];
-    if (obj && typeof obj === "object" && (obj.enable || obj.request) && obj.id) {
-      const id = String(obj.id);
-      if (!seen.has(id)) {
-        seen.add(id);
-        list.push(obj);
-      }
+
+  const consider = (obj: any) => {
+    if (!looksLikeWallet(obj)) return;
+    const id = String(obj.id || obj.name || list.length);
+    if (seen.has(id)) return;
+    seen.add(id);
+    list.push(obj);
+  };
+
+  // Non-enumerable props are visible via getOwnPropertyNames (unlike Object.keys).
+  let names: string[] = [];
+  try {
+    names = Object.getOwnPropertyNames(w).filter((k) => k.startsWith("starknet"));
+  } catch {
+    /* ignore */
+  }
+  for (const key of names) {
+    try {
+      consider(w[key]);
+    } catch {
+      /* accessing some exotic window props can throw */
+    }
+  }
+  // Guaranteed direct probe (also covers keys not returned above).
+  for (const key of CANDIDATE_KEYS) {
+    try {
+      consider(w[key]);
+    } catch {
+      /* ignore */
     }
   }
   return list;
+}
+
+// Injection can be a touch async right after load — retry briefly.
+export async function detectWalletsWithRetry(tries = 4, delayMs = 300): Promise<StarknetWindowObject[]> {
+  for (let i = 0; i < tries; i++) {
+    const found = detectWallets();
+    if (found.length > 0) return found;
+    if (i < tries - 1) await new Promise((r) => setTimeout(r, delayMs));
+  }
+  return [];
 }
 
 // Prompt the wallet for account access and return the connected address.

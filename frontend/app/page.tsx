@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ADDRESSES, EXPLORER } from "../lib/config";
 import { depositCalls, fromUnits, readU256, stakeCalls, toUnits } from "../lib/agama";
-import { connectWalletObject, detectWallets, walletLabel } from "../lib/wallet";
+import { connectWalletObject, detectWalletsWithRetry, walletLabel } from "../lib/wallet";
 
 export default function Home() {
   const [wallet, setWallet] = useState<any>(null);
@@ -30,12 +30,13 @@ export default function Home() {
   }, []);
 
   const beginConnect = useCallback(async () => {
-    setStatus("");
-    const found = detectWallets();
+    setStatus("Looking for wallet…");
+    const found = await detectWalletsWithRetry();
     if (found.length === 0) {
       setStatus("No Starknet wallet detected. Install Ready or Braavos, then reload.");
       return;
     }
+    setStatus("");
     if (found.length === 1) {
       await doConnect(found[0]);
     } else {
