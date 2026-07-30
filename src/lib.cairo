@@ -13,4 +13,5 @@ pub mod agama_anonymizer;
 pub mod agama_pool_vault;
 pub mod agusd;
 pub mod mock_usdc;
+pub mod nav_oracle;
 pub mod vault;
