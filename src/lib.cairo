@@ -15,6 +15,7 @@ pub mod agusd;
 pub mod allocation_engine;
 pub mod mock_usdc;
 pub mod nav_oracle;
+pub mod pool_adapter;
 pub mod sagusd;
 pub mod vault;
 pub mod withdrawal_queue;
