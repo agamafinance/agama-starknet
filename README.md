@@ -68,6 +68,19 @@ starknet-devnet --seed 0                        # local node (instant, forkable)
 sncast declare --contract-name AgamaVault       # Sepolia (default profile)
 ```
 
+## Live on Sepolia
+
+The production stack deploys with `scripts/deploy_sepolia.sh`. The core is already live and
+a real deposit of **15 USDC (native Circle) minted 15 agUSD** in the new vault.
+
+| Contract | Address |
+|---|---|
+| AgamaUSD (agUSD) | `0x0143b8bf5144be0c0568410b6f8c3eb90629ddadfd0da9ac3a90cb35ec1b6006` |
+| AgamaVault | `0x07909652ce28348eabfdce6b67a82228513798c70d5e06ec23fc2028abc261b5` |
+
+USDC (Circle native): `0x0512feac6339ff7889822cb5aa2a86c848e9d392bb0e3e237c008674feed8343`.
+Explorer: https://sepolia.voyager.online
+
 ## Status
 
 Not live on mainnet. Target: Starknet mainnet in 2–3 months, bringing LPs on-chain into
