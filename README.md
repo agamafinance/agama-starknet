@@ -1,86 +1,75 @@
 # Agama on Starknet
 
-Cairo proof of concept of Agama's private-credit lending product on Starknet, and its
-integration with Starknet's native **STRK20** privacy layer.
+Cairo implementation of Agama's compliant private-credit lending protocol on Starknet,
+built to run on the native **STRK20** privacy layer.
 
-It ports Agama's core mechanics (deposit → mint `agUSD` 1:1, an allocation engine with
-on-chain concentration caps, redeem) to Cairo, and reproduces the official STRK20
-**lending-anonymizer** pattern so a shielded user can deposit into an Agama pool privately.
+Lenders deposit USDC and mint `agUSD` (a synthetic dollar) 1:1; capital is allocated by an
+on-chain engine across lending pools under concentration caps, marked by a NAV oracle, and
+backed by real-world private credit. `agUSD` can be staked into `sagUSD` to earn the
+real-world yield. Deposits are shielded through Starknet's native STRK20 pool via the
+official lending-anonymizer pattern.
 
-Full lifecycle is tested (9/9 with `snforge`) and deployed + exercised with real
-transactions on Starknet Sepolia using native Circle USDC.
+Contracts use OpenZeppelin's audited Cairo components and are **immutable** (no upgradeability).
+Everything is tested with `snforge` (unit + fork tests) and exercised on Starknet Sepolia.
 
 ## Contracts (`src/`)
 
 | Contract | Role |
 |---|---|
-| `agama_vault.cairo` | `AgamaVault` — deposit USDC → mint `agUSD` 1:1; `allocate()` across pools with an on-chain **concentration cap**; `deallocate`; `redeem`. Invariant: `agUSD supply == reserve + deployed`. |
-| `agama_pool_vault.cairo` | `AgamaPoolVault` — an Agama pool exposed as an **ERC-4626 / SNIP-22** vault (`deposit(assets, receiver)`, `redeem(shares, receiver, owner)`), the interface the STRK20 anonymizer calls. |
-| `agama_anonymizer.cairo` | `AgamaLendingAnonymizer` — faithful reproduction of Starknet's STRK20 lending-anonymizer pattern (`privacy_invoke`). The native privacy pool calls it to run deposit/withdraw on the pool on behalf of a shielded user, then pulls the result into an encrypted note. Stateless. |
-| `mock_usdc.cairo` | `MockUsdc` — minimal ERC20 standing in for native USDC in tests (`balance_of`, snake_case). |
+| `agusd.cairo` | `AgamaUSD` — synthetic dollar. OZ ERC20, 6 decimals, mint/burn restricted to the vault (minter), owner-set minter. |
+| `vault.cairo` | `AgamaVault` — deposit USDC → mint `agUSD` 1:1; redeem → burn `agUSD` and return USDC; holds the reserve. |
+| `nav_oracle.cairo` | `NavOracle` — pushes RWA NAV with three checks (authorized reporter, monotonic timestamp, ≤5% deviation else admin override) and a staleness gate that blocks allocations/withdrawals. |
+| `allocation_engine.cairo` | `AllocationEngine` — admin pool registration (no self-listing), per-pool **concentration caps** enforced on-chain, allocations blocked while the oracle is stale. |
+| `sagusd.cairo` | `StakedAgamaUSD` — ERC-4626-style yield-bearing vault over `agUSD`; share price grows as RWA yield lands. |
+| `withdrawal_queue.cairo` | `WithdrawalQueue` — FIFO redemptions settled in order as USDC returns from settlement. |
+| `pool_adapter.cairo` | `IPoolAdapter` + `VesuAdapter` (on-chain ERC-4626 / SNIP-22, e.g. Vesu) + `OriginatorAdapter` (off-chain private-credit originator via native USDC + CCTP). |
+| `agama_pool_vault.cairo` | `AgamaPoolVault` — an Agama pool as an ERC-4626 / SNIP-22 vault, the interface the STRK20 anonymizer calls. |
+| `agama_anonymizer.cairo` | `AgamaLendingAnonymizer` — the official STRK20 lending-anonymizer pattern (`privacy_invoke`): the native privacy pool runs deposit/withdraw on an Agama pool for a shielded user, then pulls the result into an encrypted note. |
+| `mock_usdc.cairo` | Minimal ERC20 standing in for native USDC in tests. |
 
-Reference for the anonymizer pattern: [`starkware-libs/starknet-privacy`](https://github.com/starkware-libs/starknet-privacy), `packages/vesu_lending_anonymizer`. The anonymizer is protocol-agnostic: any ERC-4626/SNIP-22 vault plugs in.
+## STRK20 privacy integration
 
-## Tests (`tests/`)
+The on-chain integration is the **anonymizer** (`agama_anonymizer.cairo`), a faithful
+reproduction of Starknet's official pattern
+([`starkware-libs/starknet-privacy`](https://github.com/starkware-libs/starknet-privacy),
+`packages/vesu_lending_anonymizer`). It is protocol-agnostic: any ERC-4626 / SNIP-22 vault
+plugs in, and `agama_pool_vault.cairo` exposes exactly that interface.
+
+- **Built and tested:** the anonymizer's shielded deposit/withdraw against an Agama pool, at
+  the contract level (unit tests + exercised on Sepolia).
+- **Fork-ready:** `tests/test_fork.cairo` runs against real Sepolia state (validated today
+  against Circle's native USDC). The same harness will test the anonymizer against the
+  **deployed STRK20 privacy pool** once the Starknet Foundation shares its Sepolia address.
+- **Then, end-to-end private:** client-side ZK proof (Stwo) via the Privacy SDK, with the
+  deployed pool invoking the anonymizer through its `INVOKE_SELECTOR`.
+
+## Tests
 
 ```bash
 snforge test
 ```
 
-`test_vault.cairo`: deposit mints 1:1, redeem burns and returns USDC, allocate within cap,
-allocate over cap reverts (`'cap breached'`), allocate requires admin, backing invariant.
-
-`test_strk20_integration.cairo`: shielded deposit into an Agama pool through the anonymizer,
-shielded withdraw (redeem) back out, and the anonymizer's equal-token guard.
-
-## Deployed on Starknet Sepolia
-
-Native Circle USDC used: `0x0512feac6339ff7889822cb5aa2a86c848e9d392bb0e3e237c008674feed8343` (6 decimals).
-
-| Contract | Address |
-|---|---|
-| AgamaVault | `0x043b86c4822dcc4720c27b183beb5a3d1162c2f2b162e93d42a45e2671482e54` |
-| AgamaPoolVault | `0x038ae973209be7daa4c13e6826316232c79c517ca2bc4b92d42c58a6587a4aaf` |
-| AgamaLendingAnonymizer | `0x054a349aaefa2d71a18901290465ae057b36ff6577f9c81f9577321bd04a0790` |
-
-Lifecycle exercised on-chain (real tx): deposit 15 USDC → `agUSD`, multi-pool allocate,
-concentration-cap revert, deallocate, full redeem/withdraw, and STRK20 anonymizer
-deposit + withdraw. Explorer: https://sepolia.voyager.online.
-
-### What is proven vs. what is next
-
-- **Proven on testnet:** the Agama product + the STRK20 contract-level integration (the
-  anonymizer executing deposit/withdraw against the Agama ERC-4626 pool).
-- **Next (needs Starknet Foundation):** the fully private end-to-end flow — client-side ZK
-  proof (Stwo) via the [Privacy SDK](https://github.com/starkware-libs/starknet-privacy) and
-  the deployed STRK20 privacy pool invoking the anonymizer via its `INVOKE_SELECTOR`. Fork a
-  devnet against the deployed pool to test this locally (see below).
+39 tests covering: agUSD mint/burn access control, vault deposit/redeem, NAV oracle (three
+checks + admin override + staleness), allocation engine (caps + registration + oracle gate),
+sagUSD staking yield accrual, FIFO withdrawal queue, pool adapters (Vesu + originator), the
+STRK20 anonymizer deposit/withdraw, and a Sepolia fork test against real Circle USDC.
 
 ## Dev stack
 
-- **scarb** 2.20, **starknet-foundry** 0.62 (`snforge` tests, `sncast` deploy/interact),
-  **starknet-devnet** 0.9 for local dev.
+- **scarb** 2.20, **starknet-foundry** 0.62 (`snforge`, `sncast`), **starknet-devnet** 0.9.
+- OpenZeppelin Cairo 3.0.
 - RPC: `sncast` expects JSON-RPC spec **0.10**. Use **PublicNode**
   (`https://starknet-sepolia-rpc.publicnode.com`) or a dedicated key (Alchemy). Do **not**
-  use Blast (decommissioned). Profiles are in `snfoundry.toml`.
+  use Blast (decommissioned). Profiles live in `snfoundry.toml`.
 
 ```bash
-# tests
-snforge test
-
-# local devnet (instant, no rate limits, forkable)
-starknet-devnet --seed 0
-#   fork real Sepolia state to test against the deployed STRK20 pool:
-#   starknet-devnet --fork-network sepolia --fork-block <n>
-
-# Sepolia (uses snfoundry.toml default profile = PublicNode + your account)
-sncast declare --contract-name AgamaVault
-sncast deploy  --class-hash <hash> --constructor-calldata <admin> <usdc> <cap_bps> 0
-sncast invoke  --contract-address <vault> --function deposit --calldata <amount> 0
-sncast call    --contract-address <vault> --function reserve
+snforge test                                   # unit + fork tests
+starknet-devnet --seed 0                        # local node (instant, forkable)
+sncast declare --contract-name AgamaVault       # Sepolia (default profile)
 ```
 
 ## Status
 
 Not live on mainnet. Target: Starknet mainnet in 2–3 months, bringing LPs on-chain into
-private-credit pools, built on the native STRK20 privacy layer.
+private-credit pools on the native STRK20 privacy layer. Contracts are immutable; a security
+audit is planned before mainnet.
