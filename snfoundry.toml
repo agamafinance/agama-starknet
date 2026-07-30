@@ -1,0 +1,30 @@
+# Agama on Starknet — sncast config.
+# Docs: https://foundry-rs.github.io/starknet-foundry/appendix/snfoundry-toml.html
+#
+# `default` targets Sepolia via PublicNode (RPC spec 0.10.x — the version sncast 0.62
+# expects). Avoid the anonymous `--network sepolia` provider (rate-limits) and Blast
+# (decommissioned). For heavier dev, swap `url` for a dedicated Alchemy key.
+# Usage: `sncast call ...` (no flags) uses this. Local: `sncast --profile devnet ...`.
+
+[sncast.default]
+url = "https://starknet-sepolia-rpc.publicnode.com"
+account = "agama_deployer"
+accounts-file = "/Users/eden/.starknet_accounts/starknet_open_zeppelin_accounts.json"
+wait-params = { timeout = 300, retry-interval = 5 }
+block-explorer = "Voyager"
+show-explorer-links = true
+
+# Same as default, explicit name.
+[sncast.sepolia]
+url = "https://starknet-sepolia-rpc.publicnode.com"
+account = "agama_deployer"
+accounts-file = "/Users/eden/.starknet_accounts/starknet_open_zeppelin_accounts.json"
+wait-params = { timeout = 300, retry-interval = 5 }
+block-explorer = "Voyager"
+show-explorer-links = true
+
+# Local starknet-devnet (no rate limits, forkable). Start with:
+#   starknet-devnet --seed 0
+# then import a predeployed account it prints, or use --account one of its keys.
+[sncast.devnet]
+url = "http://127.0.0.1:5050/rpc"
