@@ -40,6 +40,17 @@ export function depositCalls(amount: bigint): Call[] {
   ];
 }
 
+// Redeem agUSD back into USDC (vault burns the caller's agUSD as minter — no approve).
+export function redeemCalls(amount: bigint): Call[] {
+  return [
+    {
+      contractAddress: ADDRESSES.vault,
+      entrypoint: "redeem",
+      calldata: u256Calldata(amount),
+    },
+  ];
+}
+
 // Stake agUSD into sagUSD (approve, then stake).
 export function stakeCalls(amount: bigint): Call[] {
   return [
@@ -52,6 +63,17 @@ export function stakeCalls(amount: bigint): Call[] {
       contractAddress: ADDRESSES.sagusd,
       entrypoint: "stake",
       calldata: u256Calldata(amount),
+    },
+  ];
+}
+
+// Unstake sagUSD shares back into agUSD (burns the caller's shares — no approve).
+export function unstakeCalls(shares: bigint): Call[] {
+  return [
+    {
+      contractAddress: ADDRESSES.sagusd,
+      entrypoint: "unstake",
+      calldata: u256Calldata(shares),
     },
   ];
 }

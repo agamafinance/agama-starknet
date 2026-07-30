@@ -24,7 +24,8 @@ h1 { font-size: 34px; margin: 6px 0 4px; letter-spacing: -0.5px; }
 .muted { color: var(--muted); }
 .label { font-size: 13px; letter-spacing: 1px; color: var(--mint); font-weight: 700; text-transform: uppercase; margin-bottom: 12px; }
 input { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: #24463a; color: var(--text); font-size: 16px; }
-.btns { display: flex; gap: 10px; margin-top: 12px; }
+.section-label { font-size: 11px; letter-spacing: 0.6px; color: var(--muted); text-transform: uppercase; margin-top: 18px; }
+.btns { display: flex; gap: 10px; margin-top: 8px; }
 button { flex: 1; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--mint); background: transparent; color: var(--mint); font-weight: 700; font-size: 15px; cursor: pointer; }
 button.primary { background: var(--mint); color: #173029; border-color: var(--mint); }
 button:disabled { opacity: 0.4; cursor: not-allowed; }

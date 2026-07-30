@@ -1,7 +1,15 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { ADDRESSES, EXPLORER } from "../lib/config";
-import { depositCalls, fromUnits, readU256, stakeCalls, toUnits } from "../lib/agama";
+import {
+  depositCalls,
+  fromUnits,
+  readU256,
+  redeemCalls,
+  stakeCalls,
+  toUnits,
+  unstakeCalls,
+} from "../lib/agama";
 import { connectWalletObject, detectWalletsWithRetry, walletLabel } from "../lib/wallet";
 
 export default function Home() {
@@ -144,21 +152,40 @@ export default function Home() {
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
         />
+
+        <div className="section-label">Vault · spends USDC / agUSD</div>
         <div className="btns">
           <button
             className="primary"
-            disabled={busy || !address || amt <= 0n}
+            disabled={busy || !address || amt <= 0n || amt > bal.usdc}
             onClick={() => send(depositCalls(amt), "Deposit")}
           >
             Deposit → agUSD
           </button>
           <button
-            disabled={busy || !address || amt <= 0n || !ADDRESSES.sagusd}
+            disabled={busy || !address || amt <= 0n || amt > bal.agusd}
+            onClick={() => send(redeemCalls(amt), "Redeem")}
+          >
+            Redeem → USDC
+          </button>
+        </div>
+
+        <div className="section-label">Staking · spends agUSD / sagUSD</div>
+        <div className="btns">
+          <button
+            disabled={busy || !address || amt <= 0n || amt > bal.agusd || !ADDRESSES.sagusd}
             onClick={() => send(stakeCalls(amt), "Stake")}
           >
             Stake → sagUSD
           </button>
+          <button
+            disabled={busy || !address || amt <= 0n || amt > bal.sagusd || !ADDRESSES.sagusd}
+            onClick={() => send(unstakeCalls(amt), "Unstake")}
+          >
+            Unstake → agUSD
+          </button>
         </div>
+
         {status && <div className="status">{status}</div>}
       </div>
 
