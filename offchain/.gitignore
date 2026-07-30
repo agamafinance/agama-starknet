@@ -1,0 +1,6 @@
+node_modules/
+.env
+events.jsonl
+.indexer-state.json
+nav-reports.json
+pnpm-lock.yaml

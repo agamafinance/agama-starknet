@@ -1,0 +1,15 @@
+{
+  "name": "agama-starknet-offchain",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Off-chain services for Agama on Starknet: NAV backend, keeper, and event indexer.",
+  "scripts": {
+    "nav": "node src/index.mjs nav",
+    "keeper": "node src/index.mjs keeper",
+    "indexer": "node src/index.mjs indexer"
+  },
+  "dependencies": {
+    "starknet": "^7.0.0"
+  }
+}
