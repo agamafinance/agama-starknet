@@ -3,15 +3,22 @@ import { RPC_URL, ADDRESSES, POOLS } from "./config";
 
 export const provider = new RpcProvider({ nodeUrl: RPC_URL });
 
+// Block identifier for reads. Reads default to "latest"; the vault snapshot pins
+// every call to ONE explicit block number so NAV and supply — updated together in a
+// single deposit tx — are never read across a block boundary (which would show a
+// phantom price spike). PublicNode (RPC 0.10) also rejects the "pending" tag.
+export type Block = number | "latest";
+
 export async function readFelt(
   address: string,
   entrypoint: string,
   calldata: string[] = [],
+  block: Block = "latest",
 ): Promise<bigint> {
   if (!address) return 0n;
   const res: any = await provider.callContract(
     { contractAddress: address, entrypoint, calldata },
-    "latest",
+    block,
   );
   const arr: string[] = Array.isArray(res) ? res : res.result;
   return BigInt(arr[0]);
@@ -21,13 +28,12 @@ export async function readU256(
   address: string,
   entrypoint: string,
   calldata: string[] = [],
+  block: Block = "latest",
 ): Promise<bigint> {
   if (!address) return 0n;
-  // Read on the "latest" block: PublicNode (RPC 0.10) rejects the default
-  // "pending" block tag that starknet.js v6 would otherwise use.
   const res: any = await provider.callContract(
     { contractAddress: address, entrypoint, calldata },
-    "latest",
+    block,
   );
   const arr: string[] = Array.isArray(res) ? res : res.result;
   return uint256.uint256ToBN({ low: arr[0], high: arr[1] });
@@ -95,21 +101,25 @@ export async function readPoolState(
   address: string,
   label: string,
   sector: string,
+  block: Block = "latest",
 ): Promise<PoolState> {
   const [principal, accrued, aprBps, lastTs] = await Promise.all([
-    readU256(address, "principal"),
-    readU256(address, "accrued"),
-    readFelt(address, "apr_bps"),
-    readFelt(address, "last_accrual"),
+    readU256(address, "principal", [], block),
+    readU256(address, "accrued", [], block),
+    readFelt(address, "apr_bps", [], block),
+    readFelt(address, "last_accrual", [], block),
   ]);
   return { address, label, sector, principal, accrued, aprBps, lastTs };
 }
 
+// One consistent snapshot: pin every read to the same block so NAV (idle + pools) and
+// supply are always from the same on-chain state — no phantom price on a deposit.
 export async function readVaultState(): Promise<VaultState> {
+  const block = await provider.getBlockNumber();
   const [idle, supply, pools] = await Promise.all([
-    readU256(ADDRESSES.vault, "idle"),
-    readU256(ADDRESSES.agusd, "total_supply"),
-    Promise.all(POOLS.map((p) => readPoolState(p.address, p.label, p.sector))),
+    readU256(ADDRESSES.vault, "idle", [], block),
+    readU256(ADDRESSES.agusd, "total_supply", [], block),
+    Promise.all(POOLS.map((p) => readPoolState(p.address, p.label, p.sector, block))),
   ]);
   return { idle, supply, pools };
 }
@@ -181,16 +191,13 @@ export function sharePriceStr(state: VaultState, nowSec: bigint, dp = 8): string
   return int.toString() + "." + frac;
 }
 
-// Principal-weighted average APR of the pools, as a percentage string.
-// aprBps is in basis points (1200 = 12%), so percent = weighted_bps / 100.
-export function blendedAprPct(state: VaultState): string {
+// Effective APR earned by agUSD, weighted over the whole NAV (so idle reserve, which
+// earns nothing until allocated, correctly drags the rate down). This is the real rate
+// the share price grows at: Σ(principal_i * apr_i) / NAV. aprBps is basis points.
+export function blendedAprPct(state: VaultState, nav: bigint): string {
   let num = 0n;
-  let den = 0n;
-  for (const p of state.pools) {
-    num += p.principal * p.aprBps;
-    den += p.principal;
-  }
-  if (den === 0n) return "0.00";
-  const pct = Number(num) / Number(den) / 100;
+  for (const p of state.pools) num += p.principal * p.aprBps;
+  if (nav === 0n) return "0.00";
+  const pct = Number(num) / Number(nav) / 100;
   return pct.toFixed(2);
 }

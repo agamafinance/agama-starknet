@@ -126,7 +126,7 @@ export default function Home() {
   const nowB = BigInt(now);
   const price = vault ? sharePriceStr(vault, nowB, 8) : "1.00000000";
   const nav = vault ? projectNav(vault, nowB) : 0n;
-  const apr = vault ? blendedAprPct(vault) : "0.00";
+  const apr = vault ? blendedAprPct(vault, nav) : "0.00";
   const userValue = vault ? sharesToUsdc(bal.agusd, nav, vault.supply) : 0n;
 
   const amt = toUnits(amount);
