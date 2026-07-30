@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ADDRESSES, EXPLORER } from "../lib/config";
 import {
   amountStr,
@@ -17,6 +17,7 @@ import {
   type VaultState,
 } from "../lib/agama";
 import { connectWalletObject, detectWalletsWithRetry, walletLabel } from "../lib/wallet";
+import NavChart from "./NavChart";
 
 export default function Home() {
   const [wallet, setWallet] = useState<any>(null);
@@ -28,12 +29,30 @@ export default function Home() {
   const [amount, setAmount] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  const [series, setSeries] = useState<number[]>([]);
 
   // 1s clock drives the live price projection.
   useEffect(() => {
     const t = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
     return () => clearInterval(t);
   }, []);
+
+  // Build the price series: seed a full window by back-projecting the exact on-chain
+  // formula, then append one real sample per tick so the chart scrolls live.
+  const WINDOW = 150; // points (~2.5 min at 1s)
+  useEffect(() => {
+    if (!vault) return;
+    const price = parseFloat(sharePriceStr(vault, BigInt(now), 8));
+    setSeries((s) => {
+      const base =
+        s.length > 0
+          ? s
+          : Array.from({ length: WINDOW - 1 }, (_, k) =>
+              parseFloat(sharePriceStr(vault, BigInt(now - (WINDOW - 1) + k), 8)),
+            );
+      return [...base, price].slice(-WINDOW);
+    });
+  }, [now, vault]);
 
   const loadVault = useCallback(async () => {
     try {
@@ -145,8 +164,9 @@ export default function Home() {
           {price}
           <span className="price-unit"> USDC</span>
         </div>
+        <NavChart series={series} />
         <div className="price-meta">
-          NAV ${amountStr(nav, 6)} · {apr}% blended APR · live
+          NAV ${amountStr(nav, 6)} · {apr}% APR · +{((Number(apr) * 30) / 365).toFixed(2)}% / 30d proj.
         </div>
       </div>
 
