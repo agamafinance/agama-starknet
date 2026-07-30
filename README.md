@@ -81,10 +81,11 @@ withdrawal-queue drain — all real transactions).
 | AgamaVault | `0x07909652ce28348eabfdce6b67a82228513798c70d5e06ec23fc2028abc261b5` |
 | NavOracle | `0x0524c9683f467d7c0ddc51b0b83352e33a2300bae006af90d9eb9ecad6349679` |
 | WithdrawalQueue | `0x00a8f8cae024f97dd63c5fb90444d49ede807b23b25441d563b77450a8431493` |
+| AllocationEngine | `0x013be6562483ab26ea3b1609580b8246eeb3542fbd57c7c583c036a46dc72bb9` |
+| StakedAgamaUSD (sagUSD) | `0x0129c466978f096b28e64cc086dea792bd1134e284915bf331cca40670160602` |
 
 USDC (Circle native): `0x0512feac6339ff7889822cb5aa2a86c848e9d392bb0e3e237c008674feed8343`.
-`AllocationEngine` and `StakedAgamaUSD` await a STRK top-up for their declare fee.
-Explorer: https://sepolia.voyager.online
+The full stack is live. Explorer: https://sepolia.voyager.online
 
 ## Status
 
