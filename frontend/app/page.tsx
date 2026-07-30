@@ -1,22 +1,14 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { ADDRESSES, EXPLORER } from "../lib/config";
-import {
-  depositCalls,
-  fromUnits,
-  readU256,
-  redeemCalls,
-  stakeCalls,
-  toUnits,
-  unstakeCalls,
-} from "../lib/agama";
+import { depositCalls, fromUnits, readU256, redeemCalls, toUnits } from "../lib/agama";
 import { connectWalletObject, detectWalletsWithRetry, walletLabel } from "../lib/wallet";
 
 export default function Home() {
   const [wallet, setWallet] = useState<any>(null);
   const [address, setAddress] = useState<string>("");
   const [picker, setPicker] = useState<any[]>([]);
-  const [bal, setBal] = useState({ usdc: 0n, agusd: 0n, sagusd: 0n });
+  const [bal, setBal] = useState({ usdc: 0n, agusd: 0n });
   const [amount, setAmount] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
@@ -56,7 +48,7 @@ export default function Home() {
     setWallet(null);
     setAddress("");
     setPicker([]);
-    setBal({ usdc: 0n, agusd: 0n, sagusd: 0n });
+    setBal({ usdc: 0n, agusd: 0n });
   }, []);
 
   const refresh = useCallback(async (addr: string) => {
@@ -66,8 +58,7 @@ export default function Home() {
         readU256(ADDRESSES.usdc, "balanceOf", [addr]),
         readU256(ADDRESSES.agusd, "balance_of", [addr]),
       ]);
-      const sagusd = ADDRESSES.sagusd ? await readU256(ADDRESSES.sagusd, "balance_of", [addr]) : 0n;
-      setBal({ usdc, agusd, sagusd });
+      setBal({ usdc, agusd });
     } catch {
       /* ignore transient read errors */
     }
@@ -100,7 +91,7 @@ export default function Home() {
     <div className="wrap">
       <div className="brand">AGAMA × STARKNET</div>
       <h1>Private-credit vault</h1>
-      <p className="sub">Deposit USDC to mint agUSD, then stake for real-world yield.</p>
+      <p className="sub">Deposit USDC to mint agUSD — the yield-bearing token auto-allocated across Agama lending pools.</p>
 
       <div className="card">
         {address ? (
@@ -137,10 +128,6 @@ export default function Home() {
             <span className="muted">agUSD</span>
             <span>{fromUnits(bal.agusd)}</span>
           </div>
-          <div className="row">
-            <span className="muted">sagUSD</span>
-            <span>{fromUnits(bal.sagusd)}</span>
-          </div>
         </div>
       )}
 
@@ -153,7 +140,6 @@ export default function Home() {
           onChange={(e) => setAmount(e.target.value)}
         />
 
-        <div className="section-label">Vault · spends USDC / agUSD</div>
         <div className="btns">
           <button
             className="primary"
@@ -167,22 +153,6 @@ export default function Home() {
             onClick={() => send(redeemCalls(amt), "Redeem")}
           >
             Redeem → USDC
-          </button>
-        </div>
-
-        <div className="section-label">Staking · spends agUSD / sagUSD</div>
-        <div className="btns">
-          <button
-            disabled={busy || !address || amt <= 0n || amt > bal.agusd || !ADDRESSES.sagusd}
-            onClick={() => send(stakeCalls(amt), "Stake")}
-          >
-            Stake → sagUSD
-          </button>
-          <button
-            disabled={busy || !address || amt <= 0n || amt > bal.sagusd || !ADDRESSES.sagusd}
-            onClick={() => send(unstakeCalls(amt), "Unstake")}
-          >
-            Unstake → agUSD
           </button>
         </div>
 

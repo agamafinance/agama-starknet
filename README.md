@@ -3,14 +3,23 @@
 Cairo implementation of Agama's compliant private-credit lending protocol on Starknet,
 built to run on the native **STRK20** privacy layer.
 
-Lenders deposit USDC and mint `agUSD` (a synthetic dollar) 1:1; capital is allocated by an
-on-chain engine across lending pools under concentration caps, marked by a NAV oracle, and
-backed by real-world private credit. `agUSD` can be staked into `sagUSD` to earn the
-real-world yield. Deposits are shielded through Starknet's native STRK20 pool via the
-official lending-anonymizer pattern.
+Lenders deposit USDC through Starknet's native **STRK20** privacy layer and receive `agUSD`,
+Agama's single **yield-bearing** LP token. The vault reserve is auto-allocated by an on-chain
+engine across lending pools — private credit, tokenized treasuries, bonds, on-chain RWA yield —
+under concentration caps and marked by a NAV oracle, so the real-world yield accrues to `agUSD`
+holders. Redeem `agUSD` at any time to withdraw USDC. Deposits are shielded through Starknet's
+native STRK20 pool via the official lending-anonymizer pattern.
 
 Contracts use OpenZeppelin's audited Cairo components and are **immutable** (no upgradeability).
 Everything is tested with `snforge` (unit + fork tests) and exercised on Starknet Sepolia.
+
+## Architecture
+
+![Agama on Starknet — architecture](docs/architecture.jpg)
+
+An LP deposits USDC, shielded through the native STRK20 privacy pool, and mints `agUSD`. The
+vault auto-allocates the reserve across the Agama lending pools; yield flows back to `agUSD`,
+so the single token is what LPs hold, redeem, and earn on.
 
 ## Contracts (`src/`)
 
@@ -20,7 +29,6 @@ Everything is tested with `snforge` (unit + fork tests) and exercised on Starkne
 | `vault.cairo` | `AgamaVault` — deposit USDC → mint `agUSD` 1:1; redeem → burn `agUSD` and return USDC; holds the reserve. |
 | `nav_oracle.cairo` | `NavOracle` — pushes RWA NAV with three checks (authorized reporter, monotonic timestamp, ≤5% deviation else admin override) and a staleness gate that blocks allocations/withdrawals. |
 | `allocation_engine.cairo` | `AllocationEngine` — admin pool registration (no self-listing), per-pool **concentration caps** enforced on-chain, allocations blocked while the oracle is stale. |
-| `sagusd.cairo` | `StakedAgamaUSD` — ERC-4626-style yield-bearing vault over `agUSD`; share price grows as RWA yield lands. |
 | `withdrawal_queue.cairo` | `WithdrawalQueue` — FIFO redemptions settled in order as USDC returns from settlement. |
 | `pool_adapter.cairo` | `IPoolAdapter` + `VesuAdapter` (on-chain ERC-4626 / SNIP-22, e.g. Vesu) + `OriginatorAdapter` (off-chain private-credit originator via native USDC + CCTP). |
 | `agama_pool_vault.cairo` | `AgamaPoolVault` — an Agama pool as an ERC-4626 / SNIP-22 vault, the interface the STRK20 anonymizer calls. |
@@ -49,10 +57,10 @@ plugs in, and `agama_pool_vault.cairo` exposes exactly that interface.
 snforge test
 ```
 
-39 tests covering: agUSD mint/burn access control, vault deposit/redeem, NAV oracle (three
+Tests cover: agUSD mint/burn access control, vault deposit/redeem, NAV oracle (three
 checks + admin override + staleness), allocation engine (caps + registration + oracle gate),
-sagUSD staking yield accrual, FIFO withdrawal queue, pool adapters (Vesu + originator), the
-STRK20 anonymizer deposit/withdraw, and a Sepolia fork test against real Circle USDC.
+yield accrual, FIFO withdrawal queue, pool adapters (Vesu + originator), the STRK20 anonymizer
+deposit/withdraw, and a Sepolia fork test against real Circle USDC.
 
 ## Dev stack
 
@@ -82,7 +90,6 @@ withdrawal-queue drain — all real transactions).
 | NavOracle | `0x0524c9683f467d7c0ddc51b0b83352e33a2300bae006af90d9eb9ecad6349679` |
 | WithdrawalQueue | `0x00a8f8cae024f97dd63c5fb90444d49ede807b23b25441d563b77450a8431493` |
 | AllocationEngine | `0x013be6562483ab26ea3b1609580b8246eeb3542fbd57c7c583c036a46dc72bb9` |
-| StakedAgamaUSD (sagUSD) | `0x0129c466978f096b28e64cc086dea792bd1134e284915bf331cca40670160602` |
 
 USDC (Circle native): `0x0512feac6339ff7889822cb5aa2a86c848e9d392bb0e3e237c008674feed8343`.
 The full stack is live. Explorer: https://sepolia.voyager.online
