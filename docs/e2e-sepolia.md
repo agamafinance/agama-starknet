@@ -11,9 +11,11 @@ verifiable on [Voyager](https://sepolia.voyager.online).
 | AgamaVault | `0x07909652ce28348eabfdce6b67a82228513798c70d5e06ec23fc2028abc261b5` |
 | NavOracle | `0x0524c9683f467d7c0ddc51b0b83352e33a2300bae006af90d9eb9ecad6349679` |
 | WithdrawalQueue | `0x00a8f8cae024f97dd63c5fb90444d49ede807b23b25441d563b77450a8431493` |
+| AllocationEngine | `0x013be6562483ab26ea3b1609580b8246eeb3542fbd57c7c583c036a46dc72bb9` |
+| StakedAgamaUSD (sagUSD) | `0x0129c466978f096b28e64cc086dea792bd1134e284915bf331cca40670160602` |
 
 USDC (Circle native): `0x0512feac6339ff7889822cb5aa2a86c848e9d392bb0e3e237c008674feed8343`.
-`AllocationEngine` and `StakedAgamaUSD` are pending a STRK top-up for their declare fee.
+The full stack is deployed and exercised end-to-end.
 
 ## Run results
 
@@ -45,3 +47,34 @@ FIFO enqueue then process; queue drains to empty.
 | process | [`0x4fe30b74…`](https://sepolia.voyager.online/tx/0x4fe30b742b77554439009ca639a087193d64302da214de3cdf902dc42ab7d8e) |
 
 Result: `pending = 0`.
+
+### 4. Allocation engine
+Register a pool at a 40% cap, fund 10, allocate 4 (exactly the cap), deallocate 1 — all
+gated on a fresh NAV oracle.
+
+| Step | Tx |
+|---|---|
+| push_nav (freshen) | [`0x58932392…`](https://sepolia.voyager.online/tx/0x5893239288a6e8c4dbeea681a23f9743c60bc024713fef1c8f8c6f5ea363639) |
+| register_pool(1, 40%) | [`0xe459016f…`](https://sepolia.voyager.online/tx/0xe459016f26e03c04cb098b46ff86692720acd84ef026733c3fdc6db199f478) |
+| fund(10) | [`0x60b78f3a…`](https://sepolia.voyager.online/tx/0x60b78f3ae44fe892fa551ccf372181d4a8c5df05efc474780580be101585506) |
+| allocate(1, 4 = cap) | [`0x6b6c3292…`](https://sepolia.voyager.online/tx/0x6b6c3292a523fbbe848c94e258249a398b87b369c4ecfe20c21e997a744c982) |
+| deallocate(1, 1) | [`0x1ecbad89…`](https://sepolia.voyager.online/tx/0x1ecbad89a4afad452ee38599a6cdbfb4a5e1b1306729d20bfe57123e870241c) |
+
+Result: `deployed(1) = 3`, `idle = 7`, `total_deployed = 3`.
+
+### 5. sagUSD staking with yield
+Deposit 10 USDC → agUSD, stake 5 → sagUSD, distribute 2 agUSD of yield into the pool, then
+unstake all shares. The share price grew 1.0 → 1.4, so unstaking 5 sagUSD returns **7 agUSD**
+(5 principal + 2 yield).
+
+| Step | Tx |
+|---|---|
+| approve USDC | [`0x1546eedf…`](https://sepolia.voyager.online/tx/0x1546eedfd10f8b9d90816dc29a3a1c8a5569063e39bd82910bee82d4fd9ba9e) |
+| deposit 10 USDC → agUSD | [`0x5b74cafc…`](https://sepolia.voyager.online/tx/0x5b74cafce7bcb65a4a457e0896acbccf9666e3e9fc195456461784edc26152f) |
+| approve agUSD → sagUSD | [`0x28b40a07…`](https://sepolia.voyager.online/tx/0x28b40a0747655bb8c1f3e69e98c92334d61690fd6c510dba5a5b0e0b14bd086) |
+| stake 5 agUSD | [`0x4102eee0…`](https://sepolia.voyager.online/tx/0x4102eee02280758e8c57fed35ef388c041985923a54e813dd3642cb4e2651cc) |
+| distribute 2 (yield) | [`0x3a33dbe4…`](https://sepolia.voyager.online/tx/0x3a33dbe4cb0f3aed8a42226764552175c8d8c4e620066702e8be34ec3d9d307) |
+| unstake 5 sagUSD → 7 agUSD | [`0x5372485e…`](https://sepolia.voyager.online/tx/0x5372485e4835291b8c40d0634439b304aa1e695883b844eea5d51338dcf8d34) |
+
+Result: `agUSD balance = 25` (15 + 10 deposited, with staked principal + yield returned),
+`sagUSD balance = 0`.
