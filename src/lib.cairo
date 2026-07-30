@@ -12,4 +12,5 @@
 pub mod agama_anonymizer;
 pub mod agama_pool_vault;
 pub mod agama_vault;
+pub mod agusd;
 pub mod mock_usdc;
