@@ -70,15 +70,20 @@ sncast declare --contract-name AgamaVault       # Sepolia (default profile)
 
 ## Live on Sepolia
 
-The production stack deploys with `scripts/deploy_sepolia.sh`. The core is already live and
-a real deposit of **15 USDC (native Circle) minted 15 agUSD** in the new vault.
+The production stack deploys with `scripts/deploy_sepolia.sh` and is exercised end-to-end
+with `scripts/e2e_sepolia.sh` (see [`docs/e2e-sepolia.md`](docs/e2e-sepolia.md) for the run
+with tx hashes: vault redeem/deposit round-trip, NAV oracle push at the deviation cap, and
+withdrawal-queue drain — all real transactions).
 
 | Contract | Address |
 |---|---|
 | AgamaUSD (agUSD) | `0x0143b8bf5144be0c0568410b6f8c3eb90629ddadfd0da9ac3a90cb35ec1b6006` |
 | AgamaVault | `0x07909652ce28348eabfdce6b67a82228513798c70d5e06ec23fc2028abc261b5` |
+| NavOracle | `0x0524c9683f467d7c0ddc51b0b83352e33a2300bae006af90d9eb9ecad6349679` |
+| WithdrawalQueue | `0x00a8f8cae024f97dd63c5fb90444d49ede807b23b25441d563b77450a8431493` |
 
 USDC (Circle native): `0x0512feac6339ff7889822cb5aa2a86c848e9d392bb0e3e237c008674feed8343`.
+`AllocationEngine` and `StakedAgamaUSD` await a STRK top-up for their declare fee.
 Explorer: https://sepolia.voyager.online
 
 ## Status
