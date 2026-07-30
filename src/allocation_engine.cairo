@@ -1,5 +1,3 @@
-use starknet::ContractAddress;
-
 // Allocation engine: routes the vault's idle USDC across registered lending pools
 // under on-chain risk controls.
 //   - pools are admin-registered (no self-listing),

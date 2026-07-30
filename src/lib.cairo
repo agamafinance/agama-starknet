@@ -15,4 +15,5 @@ pub mod agusd;
 pub mod allocation_engine;
 pub mod mock_usdc;
 pub mod nav_oracle;
+pub mod sagusd;
 pub mod vault;
