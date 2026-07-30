@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState } from "react";
 import { ADDRESSES, EXPLORER } from "../lib/config";
 import {
   amountStr,
-  blendedAprPct,
   depositCalls,
   fromUnits,
   projectNav,
@@ -143,9 +142,7 @@ export default function Home() {
   };
 
   const nowB = BigInt(now);
-  const price = vault ? sharePriceStr(vault, nowB, 8) : "1.00000000";
   const nav = vault ? projectNav(vault, nowB) : 0n;
-  const apr = vault ? blendedAprPct(vault, nav) : "0.00";
   const userValue = vault ? sharesToUsdc(bal.agusd, nav, vault.supply) : 0n;
 
   const amt = toUnits(amount);
@@ -157,18 +154,8 @@ export default function Home() {
         Deposit USDC to mint agUSD — the yield-bearing token indexed on Agama&apos;s lending pools.
       </p>
 
-      {/* Live share price — the NAV per agUSD, ticking as the pools earn. */}
-      <div className="price-hero">
-        <div className="price-label">1 agUSD =</div>
-        <div className="price-value">
-          {price}
-          <span className="price-unit"> USDC</span>
-        </div>
-        <NavChart series={series} />
-        <div className="price-meta">
-          NAV ${amountStr(nav, 6)} · {apr}% APR · +{((Number(apr) * 30) / 365).toFixed(2)}% / 30d proj.
-        </div>
-      </div>
+      {/* Price-per-share chart — NAV per agUSD, rising as the pools earn. */}
+      <NavChart vault={vault} now={now} live={series} />
 
       <div className="card">
         {address ? (
