@@ -37,6 +37,33 @@ Tests: 3 passed, 0 failed
 
 Alongside this, StarkWare's own suites pass in the same environment: 7/7 for
 `vesu_lending_anonymizer` and 303/303 for the `privacy` pool (deposit/withdraw private flow,
-viewing keys, notes, and an anonymizer driven through the real pool). The one part not
-reproducible locally is the off-chain proving service (client-side ZK, Stwo), which is
-StarkWare-operated.
+viewing keys, notes, and an anonymizer driven through the real pool).
+
+## Full shielded flow through the real pool on a local devnet
+
+`e2e/` holds a devnet e2e (`agama-lending.test.ts` + `agama-setup.ts`) that drives a shielded
+deposit through StarkWare's real privacy pool into yield-bearing agUSD via the Agama adapter,
+then redeems back to USDC. It uses a **mock prover** on a patched starknet-devnet, so it runs
+locally with nothing from StarkWare. `src/devnet.cairo` holds the deployable mocks (agUSD share
+token, split vault).
+
+To run it, drop this test and setup into a clone of `starknet-privacy` (its `e2e/` folder),
+follow the e2e prerequisites (patched starknet-devnet v0.8.0-rc.3, build the SDK and discovery
+service, build the privacy contract with the pinned scarb so sierra is 1.8.0), build this
+package's contracts, then:
+
+```bash
+cd e2e && npx vitest run tests/devnet/agama-lending.test.ts
+```
+
+Result (verified 2026-08-01):
+
+```
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+```
+
+Phases: shielded USDC deposit into the pool, lend (withdraw to the adapter, adapter mints agUSD,
+agUSD lands in an encrypted note, asserted 1:1), redeem (agUSD back to USDC into a note, value
+preserved). The one part not reproducible locally is the off-chain proving service (client-side
+ZK, Stwo), which is StarkWare-operated and only needed for a live public-chain private tx.

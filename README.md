@@ -72,11 +72,12 @@ shielded deposit/withdraw tests, see [`strk20-integration/`](strk20-integration/
 valid STRK20 invoke anonymizer against StarkWare's actual privacy package.
 
 **The full shielded flow is testable locally, no permission required.** StarkWare's SDK is
-open-source (in the `starknet-privacy` repo), and their own e2e runs the entire shielded lending
-path on a local devnet with a **mock prover**: deposit into the privacy pool, withdraw to the
-anonymizer, the anonymizer deposits into the lending vault, the received token lands in an
-encrypted note. We reproduced this end-to-end locally (patched starknet-devnet + the SDK +
-discovery service), and StarkWare's `vesu-lending` devnet test passes here. So development and
+open-source (in the `starknet-privacy` repo), and the whole shielded lending path runs on a local
+devnet with a **mock prover**. We reproduced it end-to-end (patched starknet-devnet + the SDK +
+discovery service): StarkWare's `vesu-lending` devnet test passes here, and we wrote our own
+`agama-lending` devnet e2e that drives a shielded deposit through the **real privacy pool** into
+yield-bearing **agUSD** via the Agama adapter, landing in an encrypted note, then redeems back to
+USDC (value preserved). See [`strk20-integration/`](strk20-integration/). So development and
 integration of the Agama lending leg need nothing from StarkWare.
 
 **What needs the real prover.** Only a live public-chain private transaction needs StarkWare's
