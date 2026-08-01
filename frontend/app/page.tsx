@@ -151,10 +151,10 @@ export default function Home() {
       <div className="brand">AGAMA × STARKNET</div>
       <h1>Private-credit vault</h1>
       <p className="sub">
-        Deposit USDC to mint agUSD — the yield-bearing token indexed on Agama&apos;s lending pools.
+        Deposit USDC to mint agUSD, the yield-bearing token indexed on Agama&apos;s lending pools.
       </p>
 
-      {/* Price-per-share chart — NAV per agUSD, rising as the pools earn. */}
+      {/* Price-per-share chart: NAV per agUSD, rising as the pools earn. */}
       <NavChart vault={vault} now={now} live={series} />
 
       <div className="card">
@@ -241,6 +241,23 @@ export default function Home() {
           </button>
         </div>
         {status && <div className="status">{status}</div>}
+      </div>
+
+      <div className="card">
+        <div className="label">Privacy · STRK20</div>
+        <p className="muted" style={{ fontSize: 13, lineHeight: 1.55, margin: "0 0 8px" }}>
+          Agama ships the on-chain lending leg for Starknet&apos;s native STRK20 privacy pool: an{" "}
+          <a
+            href={`${EXPLORER}/contract/${ADDRESSES.shieldedAdapter}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            invoke anonymizer
+          </a>{" "}
+          deployed and proven on Sepolia, so a shielded deposit lands directly as yield-bearing
+          agUSD. Full unlinkability runs through StarkWare&apos;s proving service (Stwo); the
+          deposits made directly in this dApp are transparent.
+        </p>
       </div>
 
       <p className="status">

@@ -41,23 +41,35 @@ back the model on the way to mainnet.
 | `pool_adapter.cairo` | `IPoolAdapter` + `VesuAdapter` (on-chain ERC-4626 / SNIP-22, e.g. Vesu) + `OriginatorAdapter` (off-chain private-credit originator via native USDC + CCTP). |
 | `agama_pool_vault.cairo` | `AgamaPoolVault`: an Agama pool as an ERC-4626 / SNIP-22 vault, the interface the STRK20 anonymizer calls. |
 | `agama_anonymizer.cairo` | `AgamaLendingAnonymizer`: the official STRK20 lending-anonymizer pattern (`privacy_invoke`): the native privacy pool runs deposit/withdraw on an Agama pool for a shielded user, then pulls the result into an encrypted note. |
+| `agama_shielded_adapter.cairo` | `AgamaShieldedAdapter`: the STRK20 invoke anonymizer for the live agUSD product. Bridges the vault / share-token split so a shielded `privacy_invoke(Deposit, USDC, agUSD, amount)` lands directly as yield-bearing `agUSD`, approved for the privacy pool to seal into a note. |
 | `mock_usdc.cairo` | Minimal ERC20 standing in for native USDC in tests. |
 
 ## STRK20 privacy integration
 
-The on-chain integration is the **anonymizer** (`agama_anonymizer.cairo`), a faithful
-reproduction of Starknet's official pattern
-([`starkware-libs/starknet-privacy`](https://github.com/starkware-libs/starknet-privacy),
-`packages/vesu_lending_anonymizer`). It is protocol-agnostic: any ERC-4626 / SNIP-22 vault
-plugs in, and `agama_pool_vault.cairo` exposes exactly that interface.
+STRK20 is Starknet's native, note-based privacy standard (StarkWare,
+[`starkware-libs/starknet-privacy`](https://github.com/starkware-libs/starknet-privacy)), live
+on Starknet since June 2026 with USDC support. A protocol plugs in by providing an **invoke
+anonymizer**: an on-chain contract the privacy pool calls (`privacy_invoke`) to run the lending
+leg for a shielded user, then pulls the result into an encrypted note.
 
-- **Built and tested:** the anonymizer's shielded deposit/withdraw against an Agama pool, at
-  the contract level (unit tests + exercised on Sepolia).
-- **Fork-ready:** `tests/test_fork.cairo` runs against real Sepolia state (validated today
-  against Circle's native USDC). The same harness will test the anonymizer against the
-  **deployed STRK20 privacy pool** once the Starknet Foundation shares its Sepolia address.
-- **Then, end-to-end private:** client-side ZK proof (Stwo) via the Privacy SDK, with the
-  deployed pool invoking the anonymizer through its `INVOKE_SELECTOR`.
+Agama provides exactly that, in two forms:
+
+- `agama_anonymizer.cairo`: a faithful reproduction of the official Vesu pattern, for any
+  ERC-4626 / SNIP-22 vToken (`agama_pool_vault.cairo` exposes that interface).
+- `agama_shielded_adapter.cairo`: the invoke anonymizer for the **live agUSD product**. It
+  bridges Agama's vault / share-token split so a shielded deposit lands directly as yield-bearing
+  `agUSD`. Deployed on Sepolia and exercised on-chain: a stand-in privacy pool calls
+  `privacy_invoke(Deposit, USDC, agUSD, amount)`, the adapter deposits into the vault, receives
+  `agUSD` at the current NAV price, and approves the pool to seal it into a note (see
+  [`docs/e2e-sepolia.md`](docs/e2e-sepolia.md) for the tx).
+
+**What is and is not live.** The STRK20 pool and anonymizer contract *classes* are declared on
+public Sepolia (verified on-chain), and the Agama lending leg (the adapter) is deployed and
+proven. Producing a real shielded transaction, though, needs StarkWare's **operator-run proving
+service** (client-side ZK via Stwo) plus their SDK and a pool instance; their demo runs on an
+internal "integration sepolia". So on public Sepolia the shielding leg is wired and ready, and
+full unlinkability is gated on proving-service access (a partnership / grant unlock), not on any
+Agama contract work.
 
 ## Tests
 
@@ -103,6 +115,7 @@ withdrawal-queue drain.
 | NavOracle | `0x0524c9683f467d7c0ddc51b0b83352e33a2300bae006af90d9eb9ecad6349679` |
 | WithdrawalQueue | `0x00a8f8cae024f97dd63c5fb90444d49ede807b23b25441d563b77450a8431493` |
 | AllocationEngine | `0x013be6562483ab26ea3b1609580b8246eeb3542fbd57c7c583c036a46dc72bb9` |
+| AgamaShieldedAdapter (STRK20) | `0x075ed504a33de22a9e36e9de6232f51d7e3c6c31a123bb74cc7ab993e473b842` |
 
 USDC (Circle native): `0x0512feac6339ff7889822cb5aa2a86c848e9d392bb0e3e237c008674feed8343`.
 The full stack is live. Explorer: https://sepolia.voyager.online

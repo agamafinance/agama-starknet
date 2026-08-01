@@ -11,6 +11,7 @@
 // the native shielded pool.
 pub mod agama_anonymizer;
 pub mod agama_pool_vault;
+pub mod agama_shielded_adapter;
 pub mod agusd;
 pub mod allocation_engine;
 pub mod lending_pool;

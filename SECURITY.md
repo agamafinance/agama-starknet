@@ -16,18 +16,18 @@ open public issues for security bugs.
 
 ## Trust model
 
-- **Admin (Ownable `owner`)** — trusted, and must be a multisig in production. It can: set the
+- **Admin (Ownable `owner`)**: trusted, and must be a multisig in production. It can: set the
   agUSD minter, register pools and set concentration caps, add/remove oracle reporters, push a
   NAV beyond the deviation cap (`push_nav_admin`), and drive the withdrawal queue. Admin is
   not able to seize user funds directly, but controls allocation and oracle configuration.
-- **NAV oracle (V1)** — a whitelisted reporter set pushes NAV. Centralization is bounded by:
+- **NAV oracle (V1)**: a whitelisted reporter set pushes NAV. Centralization is bounded by:
   monotonic timestamps, a ≤5% per-update deviation cap (larger moves require the admin path),
   and a staleness gate that halts allocations/withdrawals if the feed goes quiet. V2 replaces
   the single reporter with a 2-of-3 quorum.
-- **Off-chain (private credit)** — once USDC leaves for an originator, its return depends on the
+- **Off-chain (private credit)**: once USDC leaves for an originator, its return depends on the
   originator's operational integrity and borrower credit quality. On-chain concentration caps
   limit per-pool exposure; originators are permissioned (whitelist + legal agreement).
-- **Immutability** — no upgrade path. Fixes require redeploying and migrating.
+- **Immutability**: no upgrade path. Fixes require redeploying and migrating.
 
 ## Known considerations (for auditors)
 

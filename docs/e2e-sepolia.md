@@ -1,9 +1,9 @@
 # E2E on Starknet Sepolia
 
-End-to-end runs against the live stack — all real transactions, verifiable on
+End-to-end runs against the live stack, all real transactions, verifiable on
 [Voyager](https://sepolia.voyager.online).
 
-## Acceptance run (`scripts/e2e_full.sh`) — 8/8 checks passed
+## Acceptance run (`scripts/e2e_full.sh`): 8/8 checks passed
 
 A single real-transaction sweep with state assertions and on-chain guard checks:
 
@@ -35,6 +35,7 @@ the live yield round-trip is section 1.
 | NavOracle | `0x0524c9683f467d7c0ddc51b0b83352e33a2300bae006af90d9eb9ecad6349679` |
 | WithdrawalQueue | `0x00a8f8cae024f97dd63c5fb90444d49ede807b23b25441d563b77450a8431493` |
 | AllocationEngine | `0x013be6562483ab26ea3b1609580b8246eeb3542fbd57c7c583c036a46dc72bb9` |
+| AgamaShieldedAdapter (STRK20) | `0x075ed504a33de22a9e36e9de6232f51d7e3c6c31a123bb74cc7ab993e473b842` |
 
 USDC (Circle native): `0x0512feac6339ff7889822cb5aa2a86c848e9d392bb0e3e237c008674feed8343`.
 The full stack is deployed and exercised end-to-end.
@@ -44,7 +45,7 @@ The full stack is deployed and exercised end-to-end.
 ### 1. Live yield-bearing NAV across four lending pools
 Deposit 4 USDC → mint 4 agUSD (price 1.0), then allocate the reserve across the four pools:
 1.5 → Pool A (12%), 1.0 → Pool B (5%), 1.0 → Pool C (7%), 0.5 → Pool D (9%). Each pool now
-accrues at its own APR every block, so the vault NAV — and the `agUSD` share price — rises
+accrues at its own APR every block, so the vault NAV (and the `agUSD` share price) rises
 continuously (blended ~8.63% APR). Verified on-chain: `total_assets` grows past `4_000_000`
 each block; the dApp reads the raw pool state and projects the price live.
 
@@ -59,6 +60,22 @@ each block; the dApp reads the raw pool state and projects the price live.
 
 Result: NAV = 4.0 at t0, rising every block; `agUSD` price = NAV / supply, indexed on the
 aggregate of the four pools.
+
+### 2. STRK20 shielded-deposit leg (invoke anonymizer, on-chain)
+A stand-in for the native STRK20 privacy pool forwards a shielded user's 1 USDC to the
+`AgamaShieldedAdapter`, then invokes `privacy_invoke(Deposit, USDC, agUSD, 1.0, note=777)`. The
+adapter deposits into the vault, receives `agUSD` at the current NAV price (~0.9996 agUSD for
+1 USDC at price 1.0004), and approves the pool to seal it into a note.
+
+| Step | Tx |
+|---|---|
+| redeem 1 agUSD to get USDC | [`0x583c8d8f…`](https://sepolia.voyager.online/tx/0x583c8d8f77eb55af251845b9cc4941f5b7c13aa041d697592c24b5df59c12f0) |
+| forward 1 USDC to the adapter | [`0x74f6adc6…`](https://sepolia.voyager.online/tx/0x74f6adc662f83dfe91ae7479e6015059bc888d7ac39bbf884bc91fc147acd45) |
+| `privacy_invoke(Deposit, USDC, agUSD)` | [`0x5e0e516b…`](https://sepolia.voyager.online/tx/0x5e0e516b50be438b055178b510369585dbafca60a897f5c809fce473ebf1676) |
+
+Verified on-chain: adapter holds `0.999582 agUSD`, `0` USDC stranded, and allowance
+`adapter -> privacy pool = 0.999582` (ready to be pulled into an encrypted note). Real
+unlinkability is provided by StarkWare's proving service (Stwo), which the leg is wired for.
 
 ### 2. NAV oracle push
 `push_nav(1_050_000)` = +5% from 1_000_000, accepted at exactly the deviation cap; oracle fresh.
@@ -81,7 +98,7 @@ FIFO enqueue then process; queue drains to empty.
 Result: `pending = 0`.
 
 ### 4. Allocation engine
-Register a pool at a 40% cap, fund 10, allocate 4 (exactly the cap), deallocate 1 — all
+Register a pool at a 40% cap, fund 10, allocate 4 (exactly the cap), deallocate 1, all
 gated on a fresh NAV oracle.
 
 | Step | Tx |
@@ -95,4 +112,4 @@ gated on a fresh NAV oracle.
 Result: `deployed(1) = 3`, `idle = 7`, `total_deployed = 3`.
 
 The yield-bearing behavior itself (deposit → distribute → redeem-at-appreciated-price) is the
-round-trip in section 1 above; there is no separate staking token — agUSD is the yield token.
+round-trip in section 1 above; there is no separate staking token: agUSD is the yield token.

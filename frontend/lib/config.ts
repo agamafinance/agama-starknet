@@ -7,6 +7,8 @@ export const ADDRESSES = {
   usdc: "0x0512feac6339ff7889822cb5aa2a86c848e9d392bb0e3e237c008674feed8343",
   agusd: "0x04c0d175cab9fd3163958443830678c9828f52bbbfcd99c04cc52985302abd1f",
   vault: "0x059ed11c2b242e766818f3a957a1a9cfe22b0462b4eb7a60bbb71f5ecdb160b1",
+  // STRK20 invoke anonymizer: the lending leg the native privacy pool calls to shield a deposit.
+  shieldedAdapter: "0x075ed504a33de22a9e36e9de6232f51d7e3c6c31a123bb74cc7ab993e473b842",
 };
 
 // The four Agama lending pools behind agUSD. APR is read live on-chain; the sector

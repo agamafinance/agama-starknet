@@ -26,6 +26,7 @@ POOL_CH=$(declare_class LendingPool)
 ORACLE_CH=$(declare_class NavOracle)
 ALLOC_CH=$(declare_class AllocationEngine)
 QUEUE_CH=$(declare_class WithdrawalQueue)
+SHIELD_CH=$(declare_class AgamaShieldedAdapter)
 
 echo "Deploying instances..."
 AGUSD=$(deploy "$AGUSD_CH" "$OWNER")
@@ -41,6 +42,9 @@ POOL_A=$(deploy "$POOL_CH" "$OWNER" "$VAULT" "$(printf '0x%s' "$(echo -n 'Pool A
 POOL_B=$(deploy "$POOL_CH" "$OWNER" "$VAULT" "$(printf '0x%s' "$(echo -n 'Pool B' | xxd -p)")" 500)  # tokenized treasuries 5%
 POOL_C=$(deploy "$POOL_CH" "$OWNER" "$VAULT" "$(printf '0x%s' "$(echo -n 'Pool C' | xxd -p)")" 700)  # bonds 7%
 POOL_D=$(deploy "$POOL_CH" "$OWNER" "$VAULT" "$(printf '0x%s' "$(echo -n 'Pool D' | xxd -p)")" 900)  # onchain RWA yield 9%
+
+# STRK20 invoke anonymizer for the agUSD product (called by the native privacy pool).
+SHIELD=$(deploy "$SHIELD_CH" "$VAULT")
 
 echo "Wiring..."
 invoke "$AGUSD" set_minter "$VAULT"   # only the vault can mint/burn agUSD (shares)
@@ -62,4 +66,5 @@ Agama production stack (Sepolia)
   NavOracle        $ORACLE
   AllocationEngine $ALLOC
   WithdrawalQueue  $QUEUE
+  ShieldedAdapter  $SHIELD  (STRK20 invoke anonymizer)
 EOF
