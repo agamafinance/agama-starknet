@@ -1,0 +1,25 @@
+[package]
+name = "agama_shielded_anonymizer"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+
+[tool]
+fmt.workspace = true
+scarb.workspace = true
+
+[dependencies]
+starknet.workspace = true
+openzeppelin.workspace = true
+privacy = { path = "../privacy" }
+
+[dev-dependencies]
+assert_macros.workspace = true
+snforge_std.workspace = true
+
+[lib]
+
+[[target.starknet-contract]]
+sierra = true
+casm = true
+casm-add-pythonic-hints = true

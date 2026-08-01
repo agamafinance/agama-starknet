@@ -63,6 +63,14 @@ Agama provides exactly that, in two forms:
   `agUSD` at the current NAV price, and approves the pool to seal it into a note (see
   [`docs/e2e-sepolia.md`](docs/e2e-sepolia.md) for the tx).
 
+**Verified against StarkWare's real code.** The whole STRK20 stack is testable at the contract
+level, and it passes in this environment. Running StarkWare's own suites: 7/7 for
+`vesu_lending_anonymizer` and 303/303 for the `privacy` pool (the deposit/withdraw private flow,
+viewing keys, notes, and an anonymizer driven through the real pool). And the Agama adapter,
+compiled against the **real** `privacy::objects::OpenNoteDeposit` (not a copy), passes its own
+shielded deposit/withdraw tests, see [`strk20-integration/`](strk20-integration/). So Agama is a
+valid STRK20 invoke anonymizer against StarkWare's actual privacy package.
+
 **What is and is not live.** The STRK20 pool and anonymizer contract *classes* are declared on
 public Sepolia (verified on-chain), and the Agama lending leg (the adapter) is deployed and
 proven. Producing a real shielded transaction, though, needs StarkWare's **operator-run proving
