@@ -71,13 +71,19 @@ compiled against the **real** `privacy::objects::OpenNoteDeposit` (not a copy), 
 shielded deposit/withdraw tests, see [`strk20-integration/`](strk20-integration/). So Agama is a
 valid STRK20 invoke anonymizer against StarkWare's actual privacy package.
 
-**What is and is not live.** The STRK20 pool and anonymizer contract *classes* are declared on
-public Sepolia (verified on-chain), and the Agama lending leg (the adapter) is deployed and
-proven. Producing a real shielded transaction, though, needs StarkWare's **operator-run proving
-service** (client-side ZK via Stwo) plus their SDK and a pool instance; their demo runs on an
-internal "integration sepolia". So on public Sepolia the shielding leg is wired and ready, and
-full unlinkability is gated on proving-service access (a partnership / grant unlock), not on any
-Agama contract work.
+**The full shielded flow is testable locally, no permission required.** StarkWare's SDK is
+open-source (in the `starknet-privacy` repo), and their own e2e runs the entire shielded lending
+path on a local devnet with a **mock prover**: deposit into the privacy pool, withdraw to the
+anonymizer, the anonymizer deposits into the lending vault, the received token lands in an
+encrypted note. We reproduced this end-to-end locally (patched starknet-devnet + the SDK +
+discovery service), and StarkWare's `vesu-lending` devnet test passes here. So development and
+integration of the Agama lending leg need nothing from StarkWare.
+
+**What needs the real prover.** Only a live public-chain private transaction needs StarkWare's
+**operator-run proving service** (client-side ZK via Stwo), because the sequencer verifies a real
+proof on chain (SNIP-36). The pool and anonymizer contract classes are already declared on public
+Sepolia (verified on-chain), and the Agama adapter is deployed there. So mainnet is the only step
+gated on proving-service access (a partnership unlock), not any Agama contract or test work.
 
 ## Tests
 
