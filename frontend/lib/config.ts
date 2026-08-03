@@ -5,8 +5,8 @@ export const RPC_URL = "https://starknet-sepolia-rpc.publicnode.com";
 // lending pools, each accruing yield at its own APR.
 export const ADDRESSES = {
   usdc: "0x0512feac6339ff7889822cb5aa2a86c848e9d392bb0e3e237c008674feed8343",
-  agusd: "0x007b0c09db9f7f7666c62f6fb36c6a705fe65635ec23f40d6c87c0bca7e90872",
-  vault: "0x025cd136281736bb4987fcf1714caed1e41a93796cf91678e88e92acbf7989df",
+  agusd: "0x02c25931fa0fd76a872db10b9aa88a749e5f96201d343e60967747c5289d0445",
+  vault: "0x07d4a616c1ad04e2895477a21ad1d93c65ff47a3083df95183a7c101433f89ea",
   // STRK20 invoke anonymizer: the lending leg the native privacy pool calls to shield a deposit.
   shieldedAdapter: "0x075ed504a33de22a9e36e9de6232f51d7e3c6c31a123bb74cc7ab993e473b842",
 };
@@ -14,10 +14,10 @@ export const ADDRESSES = {
 // The four Agama lending pools behind agUSD. APR is read live on-chain; the sector
 // labels are the product framing from the architecture.
 export const POOLS = [
-  { address: "0x067de96fbe56ec9c71c23e40a2b6451a66ee92a2952ea0f0d09032219aa7ca1f", label: "Pool A", sector: "Private credit" },
-  { address: "0x078aa4b27817470999c2bbbb44f155a932fc76bba584377a6a6c25c430449686", label: "Pool B", sector: "Tokenized treasuries" },
-  { address: "0x00934b09f93593a725b1906404491fe2c227512f25d409fbb2148bf2eb57e9fd", label: "Pool C", sector: "Bonds" },
-  { address: "0x020b2d4745ce863682c9bb6f7e8a84d436a2ced3f8c5de31374b7df610a16be3", label: "Pool D", sector: "Onchain RWA yield" },
+  { address: "0x00939a9b9fa4c385a577492c9a7fd9e3b809c9a2c489f51f634b4902f901a42c", label: "Pool A", sector: "Private credit" },
+  { address: "0x03615e597ea27956be21b55d7383f39353cd30ea00e0d1f7232c21a8bad9fc6b", label: "Pool B", sector: "Tokenized treasuries" },
+  { address: "0x066c3b0a50fed66924c1decd5756eaad1396a7778f50343c1562325b6022fb00", label: "Pool C", sector: "Bonds" },
+  { address: "0x015c1866da69849a7feac67e590a69586864bcae9660c85b25253302beb3081f", label: "Pool D", sector: "Onchain RWA yield" },
 ];
 
 export const EXPLORER = "https://sepolia.voyager.online";

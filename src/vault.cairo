@@ -23,6 +23,8 @@ pub trait IAgamaVault<T> {
     fn redeem(ref self: T, shares: u256) -> u256;
     fn distribute(ref self: T, amount: u256);
     fn register_pool(ref self: T, pool: ContractAddress);
+    fn set_weights(ref self: T, weights: Array<u32>);
+    fn weight_at(self: @T, index: u32) -> u32;
     fn allocate(ref self: T, index: u32, amount: u256);
     fn deallocate(ref self: T, index: u32, amount: u256);
     fn total_assets(self: @T) -> u256;
@@ -62,6 +64,9 @@ pub mod AgamaVault {
         idle: u256,
         pool_count: u32,
         pools: Map<u32, ContractAddress>,
+        // Per-pool allocation weight (relative; the sum is the denominator). All zero
+        // means an even split. Set by the owner via set_weights.
+        weights_bps: Map<u32, u32>,
         #[substorage(v0)]
         ownable: OwnableComponent::Storage,
     }
@@ -138,14 +143,22 @@ pub mod AgamaVault {
             if n == 0 {
                 return;
             }
-            let per = amount / n.into();
+            // Sum the weights; a zero total falls back to an even split.
+            let mut total_w = 0_u32;
+            let mut j = 0_u32;
+            while j < n {
+                total_w += self.weights_bps.entry(j).read();
+                j += 1;
+            }
             let mut allocated: u256 = 0;
             let mut i = 0_u32;
             while i < n {
                 let part = if i == n - 1 {
                     amount - allocated
+                } else if total_w == 0 {
+                    amount / n.into()
                 } else {
-                    per
+                    amount * self.weights_bps.entry(i).read().into() / total_w.into()
                 };
                 if part > 0 {
                     self.idle.write(self.idle.read() - part);
@@ -228,6 +241,22 @@ pub mod AgamaVault {
             let i = self.pool_count.read();
             self.pools.entry(i).write(pool);
             self.pool_count.write(i + 1);
+        }
+
+        // Set the per-pool allocation weights (relative; deposits split by these).
+        fn set_weights(ref self: ContractState, weights: Array<u32>) {
+            self.ownable.assert_only_owner();
+            let n = self.pool_count.read();
+            assert(weights.len() == n, 'bad weights len');
+            let mut i = 0_u32;
+            while i < n {
+                self.weights_bps.entry(i).write(*weights.at(i));
+                i += 1;
+            }
+        }
+
+        fn weight_at(self: @ContractState, index: u32) -> u32 {
+            self.weights_bps.entry(index).read()
         }
 
         // Deploy idle reserve into a pool: marks principal there so it starts earning.
