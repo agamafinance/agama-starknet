@@ -24,7 +24,9 @@ export default function Home() {
   const [picker, setPicker] = useState<any[]>([]);
   const [bal, setBal] = useState({ usdc: 0n, agusd: 0n });
   const [vault, setVault] = useState<VaultState | null>(null);
-  const [now, setNow] = useState<number>(Math.floor(Date.now() / 1000));
+  // Seed with 0 so the server render and the first client render match; the
+  // real clock is set on mount below. Avoids a Date.now() hydration mismatch.
+  const [now, setNow] = useState<number>(0);
   const [amount, setAmount] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
@@ -33,6 +35,7 @@ export default function Home() {
 
   // 1s clock drives the live price projection.
   useEffect(() => {
+    setNow(Math.floor(Date.now() / 1000)); // set the real time only after mount
     const t = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
     return () => clearInterval(t);
   }, []);
