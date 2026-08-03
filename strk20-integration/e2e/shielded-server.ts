@@ -22,6 +22,28 @@ const push = (s: string) => {
   if (log.length > 40) log.pop();
 };
 
+// Retry the whole build + execute on transient reverts. The mock screening attestation and the
+// proving base block are only valid for a short window, so an operation can fail with
+// SCREENING_EXPIRED / a stale-block revert; rebuilding on the next block succeeds.
+async function attempt(fn: () => Promise<void>, label: string, tries = 5) {
+  let last: any;
+  for (let i = 0; i < tries; i++) {
+    try {
+      await fn();
+      return;
+    } catch (e: any) {
+      last = e;
+      const msg = e?.message || String(e);
+      if (i < tries - 1 && /SCREENING_EXPIRED|proof|base.?block|reverted|EXPIRED|EMPTY_PROOF/i.test(msg)) {
+        push(`${label}: transient (${(msg.match(/[A-Z_]{6,}/) || ["retry"])[0]}), retrying ${i + 1}/${tries}...`);
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw last;
+}
+
 async function boot() {
   try {
     push("Booting local devnet + privacy pool + discovery service...");
@@ -75,62 +97,71 @@ async function state() {
 
 async function shield(amount: bigint) {
   const { transfers, devnet } = env!;
-  const { callAndProof } = await transfers.alice
-    .build({ autoRegister: true, autoSetup: true, autoDiscover: { notes: "refresh", channels: "refresh" } })
-    .with(agama!.usdToken, (t: any) => t.deposit({ amount }))
-    .surplusTo(env!.env.alice.address)
-    .execute();
-  await devnet.executeOutside(callAndProof);
-  await env!.indexer.waitForBlock(devnet.url);
+  await attempt(async () => {
+    const { callAndProof } = await transfers.alice
+      .build({ autoRegister: true, autoSetup: true, autoDiscover: { notes: "refresh", channels: "refresh" } })
+      .with(agama!.usdToken, (t: any) => t.deposit({ amount }))
+      .surplusTo(env!.env.alice.address)
+      .execute();
+    await devnet.executeOutside(callAndProof);
+    await env!.indexer.waitForBlock(devnet.url);
+  }, "shield");
   push(`Shielded ${(Number(amount) / 1e18).toFixed(0)} USDC into the pool (encrypted note).`);
 }
 
 async function lend(amount: bigint) {
   const { transfers, devnet } = env!;
-  const { callAndProof } = await transfers.alice
-    .build({ autoSetup: true, autoSelectNotes: "all", autoDiscover: { notes: "refresh", channels: "refresh" } })
-    .with(agama!.usdToken)
-    .withdraw({ recipient: agama!.adapter, amount })
-    .surplusTo(env!.env.alice.address, false)
-    .with(agama!.agusd)
-    .transfer({ recipient: env!.env.alice.address, amount: Open })
-    .done()
-    .invoke((args: any) => {
-      const openNote = args.openNotes[0];
-      if (!openNote) throw new Error("no open note");
-      return { contractAddress: agama!.adapter, calldata: [0n, agama!.usdToken, agama!.agusd, amount, 0n, openNote.noteId] };
-    })
-    .execute();
-  await devnet.executeOutside(callAndProof);
-  await env!.indexer.waitForBlock(devnet.url);
+  await attempt(async () => {
+    const { callAndProof } = await transfers.alice
+      .build({ autoSetup: true, autoSelectNotes: "all", autoDiscover: { notes: "refresh", channels: "refresh" } })
+      .with(agama!.usdToken)
+      .withdraw({ recipient: agama!.adapter, amount })
+      .surplusTo(env!.env.alice.address, false)
+      .with(agama!.agusd)
+      .transfer({ recipient: env!.env.alice.address, amount: Open })
+      .done()
+      .invoke((args: any) => {
+        const openNote = args.openNotes[0];
+        if (!openNote) throw new Error("no open note");
+        return { contractAddress: agama!.adapter, calldata: [0n, agama!.usdToken, agama!.agusd, amount, 0n, openNote.noteId] };
+      })
+      .execute();
+    await devnet.executeOutside(callAndProof);
+    await env!.indexer.waitForBlock(devnet.url);
+  }, "lend");
   push(`Lent ${(Number(amount) / 1e18).toFixed(0)}: adapter minted agUSD into a shielded note (yield-bearing).`);
 }
 
 async function redeem() {
   const { transfers, devnet } = env!;
-  const { notes } = await transfers.alice.discoverNotes();
-  const amount = (notes.get(BigInt(agama!.agusd)) ?? []).reduce((s: bigint, n: any) => s + n.amount, 0n);
-  if (amount === 0n) {
-    push("Nothing to redeem (no shielded agUSD).");
-    return;
-  }
-  const { callAndProof } = await transfers.alice
-    .build({ autoSetup: true, autoSelectNotes: "all", autoDiscover: { notes: "refresh", channels: "refresh" } })
-    .with(agama!.agusd)
-    .withdraw({ recipient: agama!.adapter, amount })
-    .surplusTo(env!.env.alice.address, false)
-    .with(agama!.usdToken)
-    .transfer({ recipient: env!.env.alice.address, amount: Open })
-    .done()
-    .invoke((args: any) => {
-      const openNote = args.openNotes[0];
-      if (!openNote) throw new Error("no open note");
-      return { contractAddress: agama!.adapter, calldata: [1n, agama!.agusd, agama!.usdToken, amount, 0n, openNote.noteId] };
-    })
-    .execute();
-  await devnet.executeOutside(callAndProof);
-  await env!.indexer.waitForBlock(devnet.url);
-  push(`Redeemed ${(Number(amount) / 1e18).toFixed(4)} agUSD back to USDC (shielded note).`);
+  let redeemed = 0n;
+  await attempt(async () => {
+    const { notes } = await transfers.alice.discoverNotes();
+    const amount = (notes.get(BigInt(agama!.agusd)) ?? []).reduce((s: bigint, n: any) => s + n.amount, 0n);
+    if (amount === 0n) {
+      redeemed = 0n;
+      return;
+    }
+    const { callAndProof } = await transfers.alice
+      .build({ autoSetup: true, autoSelectNotes: "all", autoDiscover: { notes: "refresh", channels: "refresh" } })
+      .with(agama!.agusd)
+      .withdraw({ recipient: agama!.adapter, amount })
+      .surplusTo(env!.env.alice.address, false)
+      .with(agama!.usdToken)
+      .transfer({ recipient: env!.env.alice.address, amount: Open })
+      .done()
+      .invoke((args: any) => {
+        const openNote = args.openNotes[0];
+        if (!openNote) throw new Error("no open note");
+        return { contractAddress: agama!.adapter, calldata: [1n, agama!.agusd, agama!.usdToken, amount, 0n, openNote.noteId] };
+      })
+      .execute();
+    await devnet.executeOutside(callAndProof);
+    await env!.indexer.waitForBlock(devnet.url);
+    redeemed = amount;
+  }, "redeem");
+  if (redeemed === 0n) push("Nothing to redeem (no shielded agUSD).");
+  else push(`Redeemed ${(Number(redeemed) / 1e18).toFixed(4)} agUSD back to USDC (shielded note).`);
 }
 
 async function action(fn: () => Promise<void>) {
