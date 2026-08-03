@@ -130,6 +130,33 @@ pub mod AgamaVault {
             }
             total
         }
+
+        // Spread a new deposit evenly across the registered pools so the capital lands in
+        // the lending book in the same tx (the last pool absorbs the rounding remainder).
+        fn auto_allocate(ref self: ContractState, amount: u256) {
+            let n = self.pool_count.read();
+            if n == 0 {
+                return;
+            }
+            let per = amount / n.into();
+            let mut allocated: u256 = 0;
+            let mut i = 0_u32;
+            while i < n {
+                let part = if i == n - 1 {
+                    amount - allocated
+                } else {
+                    per
+                };
+                if part > 0 {
+                    self.idle.write(self.idle.read() - part);
+                    ILendingPoolDispatcher { contract_address: self.pools.entry(i).read() }
+                        .fund(part);
+                    self.emit(Allocate { index: i, amount: part });
+                    allocated += part;
+                }
+                i += 1;
+            }
+        }
     }
 
     #[abi(embed_v0)]
@@ -142,6 +169,8 @@ pub mod AgamaVault {
                 .transfer_from(user, get_contract_address(), assets);
             self.idle.write(self.idle.read() + assets);
             IAgamaUSDDispatcher { contract_address: self.agusd.read() }.mint(user, shares);
+            // Deploy the deposit straight into the lending pools, in this same tx.
+            self.auto_allocate(assets);
             self.emit(Deposit { user, assets, shares });
             shares
         }
