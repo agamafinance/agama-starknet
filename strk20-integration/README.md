@@ -94,3 +94,18 @@ Output (verified 2026-08-03):
     it lived in an encrypted note, openable only with her viewing key.
     No proving service needed: mock prover on a local devnet.
 ```
+
+## Clickable web demo
+
+`e2e/shielded-server.ts` is the same flow behind a clickable local web page. A Node server runs
+the privacy SDK server-side against the local devnet (real pool + mock prover) and serves a page
+with buttons: **Shield USDC**, **Lend into agUSD**, **Redeem**. It shows the transparent wallet
+balance next to the shielded pool notes, so you watch value move from transparent to shielded.
+
+```bash
+cd e2e && npx tsx shielded-server.ts   # then open http://localhost:3012
+```
+
+Verified e2e (2026-08-03): shield 100 (transparent 1000 to 900, shielded USDC 0 to 100), lend 60
+(shielded agUSD 0 to 60, yield-bearing note), redeem (agUSD back to USDC), all shielded. Clicking
+the buttons in the browser drives real shielded transactions through the pool.
