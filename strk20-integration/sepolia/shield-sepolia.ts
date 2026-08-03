@@ -26,7 +26,7 @@
 import { RpcProvider, Account, constants, CallData, OutsideExecutionVersion } from "starknet";
 import {
   createPrivateTransfers,
-  ContractDiscoveryProvider,
+  IndexerDiscoveryProvider,
 } from "@starkware-libs/starknet-privacy-sdk";
 import fs from "node:fs";
 import os from "node:os";
@@ -34,6 +34,10 @@ import os from "node:os";
 const RPC = process.env.RPC || "https://starknet-sepolia-rpc.publicnode.com";
 const POOL = process.env.POOL || "0x01b39392c749f030c60ae8d3ce6b1a382f290882b69584e7bec9755d48749c83";
 const PROVER_URL = process.env.PROVER_URL || "http://localhost:3000";
+// The discovery service (indexer) indexes pool notes; needed to find a note to
+// spend on redeem. A pure deposit does not exercise it. Run the repo's
+// discovery-service against Sepolia + POOL, or point at a hosted one.
+const INDEXER_URL = process.env.INDEXER_URL || "http://localhost:8080";
 // STRK is a convenient deposit token already held by the deployer on Sepolia.
 const TOKEN = process.env.DEPOSIT_TOKEN || "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d";
 const AMOUNT = BigInt(process.env.AMOUNT || String(10n ** 16n)); // 0.01 token
@@ -50,7 +54,7 @@ function account(provider: RpcProvider): Account {
 }
 
 async function main() {
-  const provider = new RpcProvider({ nodeUrl: RPC, specVersion: "0.10.2" });
+  const provider = new RpcProvider({ nodeUrl: RPC }); // spec auto-detected (0.10.2)
   const chainId = await provider.getChainId();
   if (chainId !== constants.StarknetChainId.SN_SEPOLIA) throw new Error(`not SN_SEPOLIA: ${chainId}`);
   const acc = account(provider);
@@ -64,7 +68,7 @@ async function main() {
     // Config object -> the SDK builds a ProvingServiceProofProvider that calls
     // the real prover's starknet_proveTransaction against Sepolia.
     provingProvider: { url: PROVER_URL, chainId, nodeUrl: RPC },
-    discoveryProvider: new ContractDiscoveryProvider(POOL),
+    discoveryProvider: new IndexerDiscoveryProvider(INDEXER_URL, POOL),
     poolContractAddress: POOL,
   });
 
@@ -77,7 +81,7 @@ async function main() {
   await provider.waitForTransaction(approve.transaction_hash);
 
   console.log("building shielded deposit + proving (this is the heavy Stwo step)...");
-  const { callAndProof } = await transfers.alice
+  const { callAndProof } = await transfers
     .build({ autoRegister: true, autoSetup: true, autoDiscover: { notes: "refresh", channels: "refresh" } })
     .with(TOKEN, (t: any) => t.deposit({ amount: AMOUNT }))
     .surplusTo(acc.address)
