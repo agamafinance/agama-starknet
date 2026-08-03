@@ -61,10 +61,21 @@ a real proof from the prover, waits for block maturity (proof block must be
 `<= current - 10`), and submits the proof-carrying invoke via SNIP-9 outside
 execution. On success it prints the Voyager link to the shielded transaction.
 
-## The one host constraint
+## The one host constraint: the prover needs AVX512
 
-The Stwo prover needs a native x86-64 Linux host with real CPU features. Its
-image (`transaction-prover:PRIVACY-0.14.3-RC.2`) SIGILLs (exit 132, no logs)
-inside Docker Desktop's virtualized CPU on Apple Silicon, in both the arm64 and
-amd64/Rosetta variants. Run the prover on a small Linux cloud VM (or any native
-x86-64 Linux box); everything else here runs anywhere.
+The Stwo prover (`transaction-prover:PRIVACY-0.14.3-RC.2`) requires the AVX512
+instruction set exposed to the process, with no AVX2 fallback: it aborts with
+SIGILL (exit 132, no logs) the moment AVX512 is missing. This is the single
+reason it cannot run just anywhere. Verified across environments:
+
+| Host | x86-64 | AVX512 exposed | Prover |
+|---|---|---|---|
+| Docker / OrbStack arm64 (Apple M4) | no | n/a | SIGILL (arm64 build needs an unexposed ARM extension) |
+| Rosetta amd64 (Apple M4) | emulated | no | SIGILL |
+| QEMU TCG amd64, `-cpu max` (Apple M4) | emulated | no (TCG caps at AVX2) | SIGILL |
+| GitHub Actions `ubuntu-latest` (AMD EPYC 9V74) | yes | no (masked by the hypervisor) | SIGILL |
+| Cloud compute VM (GCP c3, AWS m7i/c7i, AVX512 SKU) | yes | yes | runs |
+
+So run the prover on a cloud instance whose CPU exposes AVX512 (most modern
+compute-optimized instances do). Everything else in this folder, and the whole
+transparent + local-devnet-shielded stack, runs anywhere including Apple Silicon.
