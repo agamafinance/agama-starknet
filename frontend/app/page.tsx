@@ -28,6 +28,7 @@ export default function Home() {
   const [amount, setAmount] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  const [txs, setTxs] = useState<{ label: string; hash: string }[]>([]);
   const [series, setSeries] = useState<number[]>([]);
 
   // 1s clock drives the live price projection.
@@ -129,7 +130,8 @@ export default function Home() {
       setBusy(true);
       setStatus(`${label}…`);
       const tx = await wallet.account.execute(calls);
-      setStatus(`${label} sent: ${tx.transaction_hash}`);
+      setStatus(`${label} sent`);
+      setTxs((t) => [{ label, hash: tx.transaction_hash }, ...t].slice(0, 8));
       setTimeout(() => {
         refresh(address);
         loadVault();
@@ -242,6 +244,24 @@ export default function Home() {
         </div>
         {status && <div className="status">{status}</div>}
       </div>
+
+      {txs.length > 0 && (
+        <div className="card">
+          <div className="label">Transactions (Sepolia)</div>
+          {txs.map((t) => (
+            <div className="row" key={t.hash}>
+              <span className="muted">{t.label}</span>
+              <a href={`${EXPLORER}/tx/${t.hash}`} target="_blank" rel="noreferrer">
+                {t.hash.slice(0, 8)}…{t.hash.slice(-4)} ↗
+              </a>
+            </div>
+          ))}
+          <p className="muted" style={{ fontSize: 12, margin: "10px 0 0" }}>
+            Real, verifiable transactions on Starknet Sepolia. Deposits here are transparent (public
+            chain). Shielded STRK20 flow runs on the privacy network (see the card below).
+          </p>
+        </div>
+      )}
 
       <div className="card">
         <div className="label">Privacy · STRK20</div>
