@@ -1,0 +1,15 @@
+name: prover-probe
+on:
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: CPU capability probe
+        run: |
+          echo "arch: $(uname -m)"
+          echo "nproc: $(nproc)"
+          echo "mem: $(free -h | awk 'NR==2{print $2}')"
+          echo "model: $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2)"
+          echo -n "avx512 flags: "; grep -o 'avx512[a-z]*' /proc/cpuinfo | sort -u | tr '\n' ' '; echo
+          if grep -qo avx512f /proc/cpuinfo; then echo "AVX512F: YES"; else echo "AVX512F: NO"; fi
