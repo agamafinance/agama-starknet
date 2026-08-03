@@ -67,3 +67,30 @@ Phases: shielded USDC deposit into the pool, lend (withdraw to the adapter, adap
 agUSD lands in an encrypted note, asserted 1:1), redeem (agUSD back to USDC into a note, value
 preserved). The one part not reproducible locally is the off-chain proving service (client-side
 ZK, Stwo), which is StarkWare-operated and only needed for a live public-chain private tx.
+
+## Runnable shielded demo
+
+`e2e/demo-shielded.ts` is the same flow as a one-command demo with a narrated output. It boots a
+local devnet, deploys the Agama stack, and runs an anonymous deposit into yield-bearing agUSD and
+back. Drop it into the `starknet-privacy/e2e` folder (with the prerequisites built) and run:
+
+```bash
+cd e2e && npx tsx demo-shielded.ts
+```
+
+Output (verified 2026-08-03):
+
+```
+[2] Alice shields 100.0000 USDC into the privacy pool
+    USDC is now inside the shielded pool as an encrypted note.
+[3] Lend 60.0000: the anonymizer deposits into the vault, agUSD comes back into a note
+[4] Alice discovers her shielded agUSD note (only she can, via her viewing key)
+    Shielded agUSD in note: 60.0000 agUSD  (yield-bearing)
+[5] Redeem: agUSD back to USDC into a note
+    Shielded USDC recovered: 100.0000 USDC
+
+  RESULT
+    On-chain, nothing links Alice's address to her 60.0000 agUSD position:
+    it lived in an encrypted note, openable only with her viewing key.
+    No proving service needed: mock prover on a local devnet.
+```
