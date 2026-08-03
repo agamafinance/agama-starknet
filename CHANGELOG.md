@@ -28,8 +28,16 @@ tested; see the linked docs for tx hashes and reproduction steps.
   pool (303/303) suites pass in this environment, the Agama adapter passes against the real
   `privacy::objects` types (3/3), and a full shielded deposit into agUSD runs end-to-end on a
   local devnet with a mock prover. See `strk20-integration/`.
-- Finding: the whole shielded flow is testable locally with no permission (open-source SDK +
-  public prover image). Only a live public-chain private tx needs StarkWare's proving service.
+- **Public Sepolia verifies STRK20 proofs**: the public Starknet Sepolia sequencer (chain_id
+  `SN_SEPOLIA`) supports SNIP-36 in-protocol privacy proof verification, so a real shielded tx on
+  the public testnet is possible and explorer-verifiable. Proven against the live gateway: an
+  invoke carrying `proof_facts` returns privacy-protocol errors (code 63 "proof facts and proof
+  must both be present", code 69 "the proof field is invalid"), not "unknown field". The real
+  privacy pool is deployed on Sepolia at
+  `0x01b39392c749f030c60ae8d3ce6b1a382f290882b69584e7bec9755d48749c83`. See
+  `strk20-integration/sepolia/` for the proof script, the pool, the prover compose, and the
+  Sepolia shielded-deposit runner. The only host constraint is the Stwo prover, which needs a
+  native x86-64 Linux box (it does not run in Docker Desktop on Apple Silicon).
 
 ## Frontend and demos
 

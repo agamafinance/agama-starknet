@@ -1,0 +1,19 @@
+# StarkWare's transaction prover, configured to prove against PUBLIC Starknet
+# Sepolia. It exposes starknet_proveTransaction on :3000, which the SDK's
+# ProvingServiceProofProvider calls to turn a shielded action into a
+# (proof, proof_facts) pair that the public Sepolia sequencer verifies.
+#
+#   docker compose up
+#
+# Note: the Stwo prover needs an x86-64 Linux host with real CPU features. It
+# SIGILLs (exit 132) inside Docker Desktop's virtualized CPU on Apple Silicon,
+# so run this on a native Linux box (a small cloud VM is enough).
+services:
+  transaction-prover:
+    image: ghcr.io/starkware-libs/starknet-privacy/transaction-prover:PRIVACY-0.14.3-RC.2
+    command: ["--config_file", "/config.json"]
+    volumes:
+      - ./prover-config.sepolia.json:/config.json:ro
+    ports:
+      - "3000:3000"
+    restart: unless-stopped

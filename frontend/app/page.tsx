@@ -275,8 +275,10 @@ export default function Home() {
             invoke anonymizer
           </a>{" "}
           deployed and proven on Sepolia, so a shielded deposit lands directly as yield-bearing
-          agUSD. Full unlinkability runs through StarkWare&apos;s proving service (Stwo); the
-          deposits made directly in this dApp are transparent.
+          agUSD. The public Sepolia sequencer verifies STRK20 privacy proofs in-protocol
+          (SNIP-36), and the privacy pool is live on Sepolia, so a shielded deposit is possible on
+          the public testnet with a Stwo proof. The deposits made directly in this dApp are
+          transparent.
         </p>
       </div>
 
